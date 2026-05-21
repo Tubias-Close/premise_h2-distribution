@@ -131,8 +131,6 @@ FILEPATH_SYNFUEL_INVENTORIES = (
     INVENTORY_DIR / "lci-synfuels-from-FT-from-electrolysis.xlsx"
 )
 
-FILEPATH_HYDROGEN_TRANSPORT = INVENTORY_DIR / "lci-hydrogen-transport.xlsx"
-
 FILEPATH_SYNFUEL_INVENTORIES_FT_FROM_NG = (
     INVENTORY_DIR / "lci-synfuels-from-FT-from-natural-gas.xlsx"
 )
@@ -239,6 +237,7 @@ FILEPATH_SULFIDIC_TAILINGS = INVENTORY_DIR / "lci-sulfidic-tailings.xlsx"
 FILEPATH_SHIPS = INVENTORY_DIR / "lci-ships.xlsx"
 FILEPATH_STEEL = INVENTORY_DIR / "lci-steel.xlsx"
 FILEPATH_IND_HEAT_PUMP = INVENTORY_DIR / "lci-heat-pump-high-temp.xlsx"
+FILEPATH_HYDROGEN_TRANSPORT = INVENTORY_DIR / "lci-hydrogen-transport.xlsx"
 
 config = load_constants()
 
@@ -950,6 +949,7 @@ class NewDatabase:
                 FILEPATH_SYNFUEL_FROM_FT_FROM_COAL_GASIFICATION_WITH_CCS_INVENTORIES,
                 "3.7",
             ),
+            (FILEPATH_HYDROGEN_TRANSPORT, "3.12"),
             (FILEPATH_GEOTHERMAL_HEAT_INVENTORIES, "3.6"),
             (FILEPATH_BIGCC, "3.8"),
             (FILEPATH_NUCLEAR_EPR, "3.8"),
@@ -976,7 +976,6 @@ class NewDatabase:
             (FILEPATH_SULFIDIC_TAILINGS, "3.8"),
             (FILEPATH_SHIPS, "3.10"),
             (FILEPATH_STEEL, "3.9"),
-            (FILEPATH_HYDROGEN_TRANSPORT, "3.12"),
         ]
         for filepath in filepaths:
             # make an exception for FILEPATH_OIL_GAS_INVENTORIES
