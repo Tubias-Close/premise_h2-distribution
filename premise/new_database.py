@@ -976,7 +976,7 @@ class NewDatabase:
             (FILEPATH_SULFIDIC_TAILINGS, "3.8"),
             (FILEPATH_SHIPS, "3.10"),
             (FILEPATH_STEEL, "3.9"),
-            (FILEPATH_HYDROGEN_TRANSPORT, 3.12),
+            (FILEPATH_HYDROGEN_TRANSPORT, "3.12"),
         ]
         for filepath in filepaths:
             # make an exception for FILEPATH_OIL_GAS_INVENTORIES
