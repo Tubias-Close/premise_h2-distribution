@@ -18,6 +18,10 @@ All notable changes to this project are documented in this file.
   dependencies.
 
 ### Changed
+- Mapped MESSAGE steel production to three mutually exclusive variables
+  produced by ``iam-preprocessor``: NG-DRI/EAF, NG-DRI/EAF with CCS, and
+  H-DRI/EAF. Aggregate DRI/EAF energy use is no longer assigned to the
+  residual NG route because route-specific energy use is unavailable.
 - Reused the superstructure preparation pipeline for scenario-array export,
   preserving existing superstructure CSV, Excel, and Feather behavior while
   applying the same loading, validation, duplicate aggregation, reporting, and
@@ -27,6 +31,9 @@ All notable changes to this project are documented in this file.
   loaded.
 
 ### Fixed
+- Restored a MESSAGE H-DRI production proxy for hydrogen steel-plant sizing
+  without double counting the original aggregate DRI/EAF output or folding
+  explicit gas-with-CCS production into the non-CCS route.
 - Included matching production rows when changed self-consumption exchanges
   are netted into technosphere diagonals, preventing invalid or singular
   scenario matrices.
@@ -43,6 +50,8 @@ All notable changes to this project are documented in this file.
   validation issue.
 
 ### Documentation
+- Documented the MESSAGE sponge-iron-to-finished-steel derivation, its exact
+  regional route-closure invariant, and the treatment of route energy use.
 - Added a complete three-pathway IMAGE 2050 example for the
   `ecoinvent-3.12-cutoff` project to the examples notebook, loading guide,
   and README, including multi-activity scoring, base-database validation,
@@ -51,6 +60,8 @@ All notable changes to this project are documented in this file.
 - Documented the hydrogen production-supply boundary used by fuel validation.
 
 ### Tests
+- Added mapping and hydrogen-logistics regression tests for the processed
+  MESSAGE NG-DRI, NG-DRI+CCS, and H-DRI production proxies.
 - Added unit and orchestration coverage for scenario ordering, values, indices,
   technosphere flips, biosphere placement, structural zeros, validation errors,
   atomic ZIP output, and production/self-consumption netting.

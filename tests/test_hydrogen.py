@@ -519,6 +519,36 @@ def test_plant_based_market_is_skipped_without_production_proxy(
     assert subsector in hydrogen.skipped_hydrogen_sector_markets
 
 
+def test_message_steel_uses_processed_h_dri_production_proxy():
+    hydrogen = HydrogenMixin()
+    hydrogen.model = "message"
+    hydrogen.scenario = "test-scenario"
+    hydrogen.year = 2030
+    hydrogen.iam_data = make_iam_data(
+        variables=[
+            "Industry - Steel - All steel - H2",
+            "steel - primary - H-DRI",
+        ],
+        regions=["EUR", "World"],
+        values=[
+            [[0.004], [0.004]],
+            [[1.0], [1.0]],
+        ],
+    )
+    hydrogen.iam_data.data = hydrogen.iam_data.production_volumes
+    hydrogen.database = []
+
+    hydrogen.set_hydrogen_logistics()
+
+    steel = hydrogen.hydrogen_demand_nodes.loc[
+        hydrogen.hydrogen_demand_nodes["subsector"].eq("Steel")
+    ].iloc[0]
+    assert steel["demand_node_type"] == "steel_plants"
+    assert steel["activity_proxy_value"] == pytest.approx(1.0)
+    assert steel["demand_nodes"] == pytest.approx(2.0)
+    assert steel["distribution_status"] == "ok"
+
+
 def test_final_energy_based_chemical_market_needs_no_production_proxy():
     hydrogen = HydrogenMixin()
     hydrogen.model = "message"
