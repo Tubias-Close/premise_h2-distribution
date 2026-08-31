@@ -2297,7 +2297,8 @@ coordinate names.
      - Cement aggregate
      - Fertilizer
    * - MESSAGE
-     - All-steel aggregate
+     - All-steel hydrogen demand; preprocessed H-DRI production supplies the
+       plant-count proxy
      - Cement aggregate
      - Resins, high-value chemicals, and methanol
    * - GCAM
@@ -2316,6 +2317,28 @@ assigned to ``Other``. For IMAGE,
 ``Industry - Non-Metallic Minerals - H2`` includes cement, so the amount
 assigned to ``Other`` is calculated as non-metallic minerals minus the
 already-assigned cement demand, clipped at zero.
+
+.. note::
+
+   Raw MESSAGE exports report finished DRI/EAF steel only as
+   ``Production|Iron and Steel|Steel|Primary|EAF|Sponge Iron`` while reporting
+   hydrogen-, gas-, and gas-with-CCS sponge-iron production separately. The
+   MESSAGE preprocessing workflow converts the sponge-iron routes to finished
+   steel with the model's annual World finished-DRI-to-sponge-iron ratio. It
+   writes mutually exclusive ``H-DRI/EAF`` and ``NG-DRI/EAF + CCS`` series and
+   assigns the remaining finished DRI/EAF production to ``NG-DRI/EAF``. The
+   three derived routes close exactly to the original aggregate in every
+   region and year, so the aggregate is retained only for auditing and is not
+   mapped a second time by premise. The NG-DRI residual acts as the available
+   non-H2/non-CCS DRI inventory proxy; it also contains MESSAGE's
+   coal-without-CCS sponge-iron remainder because premise has no separate
+   coal-DRI inventory category.
+
+   MESSAGE does not report route-specific final energy for this split.
+   Therefore premise keeps the baseline inventory efficiencies for all three
+   routes instead of assigning aggregate DRI/EAF energy use to the residual
+   NG-DRI route. Direct steel hydrogen demand continues to come from
+   ``Final Energy|Industry|Iron and Steel|Hydrogen``.
 
 .. note::
 
