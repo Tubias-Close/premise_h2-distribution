@@ -83,6 +83,10 @@ sectors:
       - steel
       - direct reduced iron
       - sponge iron
+      # This inventory is regionalized by the steel transformation and supplies
+      # hot hydrogen exclusively to hydrogen-based DRI production. Its inherited
+      # ecoinvent ISIC code (2011) would otherwise misroute it to Chemicals.
+      - preheating of hydrogen
     isic_prefix:
       - "241" # Manufacture of basic iron and steel.
 
