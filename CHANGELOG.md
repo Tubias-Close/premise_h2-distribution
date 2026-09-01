@@ -20,6 +20,8 @@ All notable changes to this project are documented in this file.
   dependencies.
 
 ### Changed
+- Updated the bundled IAM scenario download source to the published Zenodo
+  v2.5.0 record 22227290.
 - TIAM-UCL H-DRI/EAF production now supplies both the existing steel
   production proxy and plant counts, while its separately derived hydrogen
   coordinate supplies regional steel demand and logistics.
