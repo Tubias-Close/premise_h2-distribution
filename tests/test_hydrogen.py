@@ -1707,6 +1707,78 @@ def test_methanation_is_general_market_consumer_not_cement_market_backing():
     assert hydrogen._consumer_backed_hydrogen_sector_market_regions()["Cement"] == set()
 
 
+def test_h_dri_hydrogen_preheating_is_routed_to_steel_not_chemicals():
+    hydrogen = HydrogenMixin()
+    preheating = {
+        "name": "preheating of hydrogen",
+        "reference product": "hydrogen, hot",
+        "location": "EUR",
+        "unit": "kilogram",
+        "classifications": [
+            ("ISIC rev.4 ecoinvent", "2011:Manufacture of basic chemicals")
+        ],
+        "exchanges": [
+            {
+                "name": "market for hydrogen, gaseous, low pressure",
+                "product": "hydrogen, gaseous, low pressure",
+                "location": "EUR",
+                "unit": "kilogram",
+                "type": "technosphere",
+                "amount": 1,
+            }
+        ],
+    }
+
+    sector, matches = hydrogen._classify_hydrogen_consumer_sector(preheating)
+
+    assert sector == "Steel"
+    assert matches == ["Steel"]
+
+
+def test_self_referential_generic_hydrogen_market_uses_world_import_mix():
+    hydrogen = HydrogenMixin()
+    hydrogen.database = [
+        {
+            "name": "market for hydrogen, gaseous, low pressure",
+            "reference product": "hydrogen, gaseous, low pressure",
+            "location": "EUR",
+            "unit": "kilogram",
+            "exchanges": [
+                {
+                    "name": "market for hydrogen, gaseous, low pressure",
+                    "product": "hydrogen, gaseous, low pressure",
+                    "location": "EUR",
+                    "unit": "kilogram",
+                    "type": "production",
+                    "amount": 1,
+                },
+                {
+                    "name": "market for hydrogen, gaseous, low pressure",
+                    "product": "hydrogen, gaseous, low pressure",
+                    "location": "EUR",
+                    "unit": "kilogram",
+                    "type": "technosphere",
+                    "amount": 1,
+                    "input": ("old", "self-link"),
+                },
+            ],
+        },
+        {
+            "name": "market for hydrogen, gaseous, low pressure",
+            "reference product": "hydrogen, gaseous, low pressure",
+            "location": "World",
+            "unit": "kilogram",
+            "exchanges": [],
+        },
+    ]
+
+    assert hydrogen._repair_self_referential_generic_hydrogen_markets() == 1
+    exchange = hydrogen.database[0]["exchanges"][1]
+    assert exchange["location"] == "World"
+    assert "input" not in exchange
+    assert hydrogen._repair_self_referential_generic_hydrogen_markets() == 0
+
+
 def test_existing_wrong_sector_and_cross_region_links_are_corrected_idempotently():
     hydrogen = HydrogenMixin()
     hydrogen.regions = ["EUR", "USA", "World"]
@@ -1886,6 +1958,7 @@ def test_hydrogen_generation_regionalizes_support_before_makeup_normalization(mo
         "_generate_hydrogen_conversion_datasets",
         "_generate_supporting_hydrogen_datasets",
         "_generate_hydrogen_truck_datasets",
+        "_repair_self_referential_generic_hydrogen_markets",
         "_normalize_hydrogen_makeup_inputs",
         "_balance_hydrogen_regasification_losses",
     ):
@@ -1902,6 +1975,7 @@ def test_hydrogen_generation_regionalizes_support_before_makeup_normalization(mo
         "_generate_hydrogen_conversion_datasets",
         "_generate_supporting_hydrogen_datasets",
         "_generate_hydrogen_truck_datasets",
+        "_repair_self_referential_generic_hydrogen_markets",
         "_normalize_hydrogen_makeup_inputs",
         "_balance_hydrogen_regasification_losses",
     ]
