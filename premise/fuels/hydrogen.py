@@ -222,6 +222,7 @@ class HydrogenMixin:
         self._generate_hydrogen_conversion_datasets()
         self._generate_supporting_hydrogen_datasets()
         self._generate_hydrogen_truck_datasets()
+        self._repair_self_referential_generic_hydrogen_markets()
         self._normalize_hydrogen_makeup_inputs()
         self._balance_hydrogen_regasification_losses()
 
@@ -1820,6 +1821,7 @@ class HydrogenMixin:
         created hydrogen consumers.
         """
 
+        self._repair_self_referential_generic_hydrogen_markets()
         self._normalize_hydrogen_makeup_inputs()
         self._balance_hydrogen_regasification_losses()
         self._remove_duplicate_hydrogen_sector_markets()
@@ -2000,6 +2002,51 @@ class HydrogenMixin:
                 if target is None or target == exchange.get("location"):
                     continue
                 exchange["location"] = target
+                exchange.pop("input", None)
+                changed += 1
+        return changed
+
+    def _repair_self_referential_generic_hydrogen_markets(self):
+        """Route zero-production regional market proxies to an import mix.
+
+        IAM regions can consume hydrogen without reporting domestic secondary
+        hydrogen production. In that case, emptying an ecoinvent market proxy
+        can leave the regional generic market linked to itself. Prefer the
+        World generic market for this imported supply, followed by the usual
+        non-IAM fallbacks, and keep the operation safe to rerun.
+        """
+
+        market_locations = {
+            dataset.get("location")
+            for dataset in self.database
+            if dataset.get("name") == HYDROGEN_MARKET
+            and dataset.get("reference product") == HYDROGEN_PRODUCT
+        }
+        changed = 0
+        for dataset in self.database:
+            if not (
+                dataset.get("name") == HYDROGEN_MARKET
+                and dataset.get("reference product") == HYDROGEN_PRODUCT
+            ):
+                continue
+            location = dataset.get("location")
+            fallback = next(
+                (
+                    candidate
+                    for candidate in ("World", "RoW", "GLO")
+                    if candidate in market_locations and candidate != location
+                ),
+                None,
+            )
+            if fallback is None:
+                continue
+            for exchange in dataset.get("exchanges", []):
+                if not (
+                    is_generic_hydrogen_market_exchange(exchange)
+                    and exchange.get("location") == location
+                ):
+                    continue
+                exchange["location"] = fallback
                 exchange.pop("input", None)
                 changed += 1
         return changed
