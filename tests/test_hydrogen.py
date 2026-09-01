@@ -186,6 +186,7 @@ def test_hydrogen_logistics_uses_target_year_and_excludes_world():
         values=[[[1, 2], [1, 2]]],
     )
     hydrogen._add_transport_demand_nodes = lambda demand: demand
+    hydrogen.database = []
 
     hydrogen.set_hydrogen_logistics()
 
@@ -391,6 +392,7 @@ def test_transport_market_is_ineligible_without_demand_nodes():
     hydrogen._add_transport_demand_nodes = lambda demand: demand
 
     hydrogen.set_hydrogen_logistics()
+    hydrogen.database = []
     eligible = hydrogen._eligible_hydrogen_sector_market_regions()
     called_markets = []
     hydrogen.process_and_add_markets = lambda **kwargs: called_markets.append(
@@ -488,6 +490,7 @@ def test_plant_based_market_is_skipped_without_production_proxy(
         values=[[[1]], [[1]]],
     )
     hydrogen.iam_data.data = hydrogen.iam_data.production_volumes
+    hydrogen.database = []
     hydrogen.set_hydrogen_logistics()
 
     sector_rows = hydrogen.hydrogen_demand_nodes.loc[
@@ -516,6 +519,36 @@ def test_plant_based_market_is_skipped_without_production_proxy(
     assert subsector in hydrogen.skipped_hydrogen_sector_markets
 
 
+def test_message_steel_uses_processed_h_dri_production_proxy():
+    hydrogen = HydrogenMixin()
+    hydrogen.model = "message"
+    hydrogen.scenario = "test-scenario"
+    hydrogen.year = 2030
+    hydrogen.iam_data = make_iam_data(
+        variables=[
+            "Industry - Steel - All steel - H2",
+            "steel - primary - H-DRI",
+        ],
+        regions=["EUR", "World"],
+        values=[
+            [[0.004], [0.004]],
+            [[1.0], [1.0]],
+        ],
+    )
+    hydrogen.iam_data.data = hydrogen.iam_data.production_volumes
+    hydrogen.database = []
+
+    hydrogen.set_hydrogen_logistics()
+
+    steel = hydrogen.hydrogen_demand_nodes.loc[
+        hydrogen.hydrogen_demand_nodes["subsector"].eq("Steel")
+    ].iloc[0]
+    assert steel["demand_node_type"] == "steel_plants"
+    assert steel["activity_proxy_value"] == pytest.approx(1.0)
+    assert steel["demand_nodes"] == pytest.approx(2.0)
+    assert steel["distribution_status"] == "ok"
+
+
 def test_final_energy_based_chemical_market_needs_no_production_proxy():
     hydrogen = HydrogenMixin()
     hydrogen.model = "message"
@@ -532,12 +565,43 @@ def test_final_energy_based_chemical_market_needs_no_production_proxy():
         values=[[[1]], [[1]]],
     )
     hydrogen.iam_data.data = hydrogen.iam_data.production_volumes
+    hydrogen.geo = GeoStub({"RER": "EUR"})
+    hydrogen.database = [
+        {
+            "name": "chemical process consuming hydrogen",
+            "reference product": "chemical product",
+            "location": "RER",
+            "unit": "kilogram",
+            "classifications": [
+                ("ISIC rev.4 ecoinvent", "2011:Manufacture of basic chemicals")
+            ],
+            "exchanges": [
+                {
+                    "name": "market for hydrogen, gaseous, low pressure",
+                    "product": "hydrogen, gaseous, low pressure",
+                    "location": "EUR",
+                    "unit": "kilogram",
+                    "type": "technosphere",
+                    "amount": 0.2,
+                }
+            ],
+        }
+    ]
     hydrogen.set_hydrogen_logistics()
 
     called_markets = []
 
     def fake_process_and_add_markets(**kwargs):
         called_markets.append(kwargs["name"])
+        hydrogen.database.append(
+            {
+                "name": kwargs["name"],
+                "reference product": kwargs["reference_product"],
+                "location": "EUR",
+                "unit": kwargs["unit"],
+                "exchanges": [],
+            }
+        )
         return {"EUR"}
 
     hydrogen.process_and_add_markets = fake_process_and_add_markets
@@ -551,7 +615,7 @@ def test_final_energy_based_chemical_market_needs_no_production_proxy():
     assert "Chemicals" in hydrogen.generated_hydrogen_sector_markets
 
 
-def test_tiam_hydrogen_final_energy_excludes_steel():
+def test_tiam_hydrogen_final_energy_uses_derived_steel_proxy():
     hydrogen = HydrogenMixin()
     hydrogen.model = "tiam-ucl"
     hydrogen.scenario = "SSP2-RCP19"
@@ -566,9 +630,42 @@ def test_tiam_hydrogen_final_energy_excludes_steel():
 
     result = hydrogen._get_hydrogen_final_energy_by_subsector()
 
-    assert result["subsector"].tolist() == ["Transport"]
-    assert result["hydrogen_final_energy_ej_per_year"].item() == 2
-    assert "Industry - Steel" not in result["source_variables"].item()
+    assert result["subsector"].tolist() == ["Steel", "Transport"]
+    assert result["hydrogen_final_energy_ej_per_year"].tolist() == [10, 2]
+    steel = result.loc[result["subsector"].eq("Steel")].iloc[0]
+    assert steel["source_variables"] == "Industry - Steel - H-DRI/EAF - H2"
+
+
+def test_tiam_derived_h_dri_demand_creates_steel_plant_logistics():
+    hydrogen = HydrogenMixin()
+    hydrogen.model = "tiam-ucl"
+    hydrogen.scenario = "SSP2-RCP19"
+    hydrogen.year = 2050
+    hydrogen.iam_data = make_iam_data(
+        variables=[
+            "Industry - Steel - H-DRI/EAF - H2",
+            "steel - primary - H-DRI",
+        ],
+        regions=["WEU", "World"],
+        values=[
+            [[0.0079827814656], [0.0079827814656]],
+            [[1.0], [1.0]],
+        ],
+    )
+    hydrogen.iam_data.data = hydrogen.iam_data.production_volumes
+    hydrogen.database = []
+
+    hydrogen.set_hydrogen_logistics()
+
+    steel = hydrogen.hydrogen_demand_nodes.loc[
+        hydrogen.hydrogen_demand_nodes["subsector"].eq("Steel")
+    ].iloc[0]
+    assert steel["demand_node_type"] == "steel_plants"
+    assert steel["activity_proxy_value"] == pytest.approx(1.0)
+    assert steel["demand_nodes"] == pytest.approx(2.0)
+    assert steel["hydrogen_demand_t_per_year"] == pytest.approx(66_523.17888)
+    assert steel["distribution_rule"] == "default_large_demand"
+    assert steel["distribution_status"] == "ok"
 
 
 def test_sector_hydrogen_market_gets_weighted_transport_exchanges():
@@ -788,6 +885,28 @@ def test_sector_hydrogen_market_is_not_generated_without_demand():
             }
         ]
     )
+    hydrogen.geo = GeoStub()
+    hydrogen.database = [
+        {
+            "name": "steel production, hydrogen direct reduction",
+            "reference product": "steel",
+            "location": "EUR",
+            "unit": "kilogram",
+            "classifications": [
+                ("ISIC rev.4 ecoinvent", "2410:Manufacture of basic iron and steel")
+            ],
+            "exchanges": [
+                {
+                    "name": "market for hydrogen, gaseous, low pressure",
+                    "product": "hydrogen, gaseous, low pressure",
+                    "location": "EUR",
+                    "unit": "kilogram",
+                    "type": "technosphere",
+                    "amount": 0.2,
+                }
+            ],
+        }
+    ]
     called_markets = []
     called_production_volumes = []
     create_world_market_settings = []
@@ -796,6 +915,15 @@ def test_sector_hydrogen_market_is_not_generated_without_demand():
         called_markets.append(kwargs["name"])
         called_production_volumes.append(kwargs["production_volumes"])
         create_world_market_settings.append(kwargs["create_world_market"])
+        hydrogen.database.append(
+            {
+                "name": kwargs["name"],
+                "reference product": kwargs["reference_product"],
+                "location": "EUR",
+                "unit": kwargs["unit"],
+                "exchanges": [],
+            }
+        )
         return {"EUR"}
 
     hydrogen.process_and_add_markets = fake_process_and_add_markets
@@ -853,6 +981,27 @@ def test_eligible_market_is_not_reported_or_used_when_creation_skips_it():
             }
         ]
     )
+    hydrogen.database = [
+        {
+            "name": "chemical process consuming hydrogen",
+            "reference product": "chemical product",
+            "location": "RER",
+            "unit": "kilogram",
+            "classifications": [
+                ("ISIC rev.4 ecoinvent", "2011:Manufacture of basic chemicals")
+            ],
+            "exchanges": [
+                {
+                    "name": "market for hydrogen, gaseous, low pressure",
+                    "product": "hydrogen, gaseous, low pressure",
+                    "location": "EUR",
+                    "unit": "kilogram",
+                    "type": "technosphere",
+                    "amount": 0.2,
+                }
+            ],
+        }
+    ]
     hydrogen.process_and_add_markets = lambda **_kwargs: set()
 
     hydrogen._generate_sector_specific_hydrogen_markets({})
@@ -947,22 +1096,16 @@ def test_hydrogen_consumer_is_relinked_to_sector_market():
     assert hydrogen.database[0]["exchanges"][0]["name"] == (
         "market for hydrogen, gaseous, low pressure, for chemicals"
     )
-    assert hydrogen.matched_hydrogen_consumers == [
-        {
-            "name": "process consuming market-average hydrogen",
-            "reference product": "intermediate product",
-            "location": "RER",
-            "hydrogen exchange location": "RER",
-            "hydrogen exchange amount": 0.2,
-            "sector": "Chemicals",
-            "old generic hydrogen market": (
-                "market for hydrogen, gaseous, low pressure"
-            ),
-            "new sector specific hydrogen market": (
-                "market for hydrogen, gaseous, low pressure, for chemicals"
-            ),
-        }
-    ]
+    record = hydrogen.matched_hydrogen_consumers[0]
+    assert record["old hydrogen market"] == (
+        "market for hydrogen, gaseous, low pressure"
+    )
+    assert record["old hydrogen market location"] == "RER"
+    assert record["new hydrogen market"] == (
+        "market for hydrogen, gaseous, low pressure, for chemicals"
+    )
+    assert record["new hydrogen market location"] == "EUR"
+    assert record["hydrogen relinking reason"] == "generic-to-sector relinking"
     assert hydrogen.unmatched_hydrogen_consumers == []
     assert hydrogen.skipped_hydrogen_consumers == []
 
@@ -1395,10 +1538,19 @@ def test_relinked_hydrogen_consumers_are_written_to_fuel_log(monkeypatch):
             "old generic hydrogen market": (
                 "market for hydrogen, gaseous, low pressure"
             ),
-            "new sector specific hydrogen market": (
-                "market for hydrogen, gaseous, low pressure, for chemicals"
-            ),
-        }
+                "new sector specific hydrogen market": (
+                    "market for hydrogen, gaseous, low pressure, for chemicals"
+                ),
+                "old hydrogen market": (
+                    "market for hydrogen, gaseous, low pressure"
+                ),
+                "old hydrogen market location": "RER",
+                "new hydrogen market": (
+                    "market for hydrogen, gaseous, low pressure, for chemicals"
+                ),
+                "new hydrogen market location": "EUR",
+                "hydrogen relinking reason": "generic-to-sector relinking",
+            }
     ]
     logs = []
     monkeypatch.setattr(
@@ -1410,7 +1562,379 @@ def test_relinked_hydrogen_consumers_are_written_to_fuel_log(monkeypatch):
     assert len(logs) == 1
     assert "updated (hydrogen sector market relink)" in logs[0]
     assert "sector market relink|Chemicals" in logs[0]
-    assert "RER|0.2|market for hydrogen, gaseous, low pressure|" in logs[0]
+    assert (
+        "RER|0.2|market for hydrogen, gaseous, low pressure|RER|"
+        "market for hydrogen, gaseous, low pressure, for chemicals|EUR|"
+        "generic-to-sector relinking|" in logs[0]
+    )
     assert (
         "market for hydrogen, gaseous, low pressure, for chemicals" in logs[0]
     )
+
+
+def test_positive_iam_demand_without_consumer_creates_no_sector_market(monkeypatch):
+    hydrogen = HydrogenMixin()
+    hydrogen.database = []
+    hydrogen.iam_data = make_iam_data(
+        variables=["hydrogen electrolysis"], regions=["EUR"], values=[[[1]]]
+    )
+    monkeypatch.setattr(
+        hydrogen,
+        "_eligible_hydrogen_sector_market_regions",
+        lambda: {sector: ({"EUR"} if sector == "Steel" else set()) for sector in (
+            "Transport", "Chemicals", "Steel", "Cement", "Heating", "Other"
+        )},
+    )
+    calls = []
+    hydrogen.process_and_add_markets = lambda **kwargs: calls.append(kwargs)
+
+    hydrogen._generate_sector_specific_hydrogen_markets({})
+
+    assert calls == []
+    assert hydrogen.excluded_eligible_hydrogen_sector_market_regions_without_consumers == {
+        "Steel": ["EUR"]
+    }
+
+
+def test_consumer_backing_creates_market_once_and_records_distinct_diagnostics(
+    monkeypatch,
+):
+    hydrogen = HydrogenMixin()
+    hydrogen.regions = ["EUR", "World"]
+    hydrogen.system_model = "cutoff"
+    hydrogen.geo = GeoStub({"RER": "EUR"})
+    hydrogen.iam_data = make_iam_data(
+        variables=["hydrogen electrolysis"], regions=["EUR"], values=[[[1]]]
+    )
+    hydrogen.database = [
+        {
+            "name": "steel production, hydrogen direct reduction",
+            "reference product": "steel",
+            "location": "RER",
+            "unit": "kilogram",
+            "classifications": [
+                ("ISIC rev.4 ecoinvent", "2410:Manufacture of basic iron and steel")
+            ],
+            "exchanges": [
+                {
+                    "name": "market for hydrogen, gaseous, low pressure",
+                    "product": "hydrogen, gaseous, low pressure",
+                    "location": "EUR",
+                    "unit": "kilogram",
+                    "type": "technosphere",
+                    "amount": 0.1,
+                }
+            ],
+        }
+    ]
+    monkeypatch.setattr(
+        hydrogen,
+        "_eligible_hydrogen_sector_market_regions",
+        lambda: {sector: ({"EUR"} if sector == "Steel" else set()) for sector in (
+            "Transport", "Chemicals", "Steel", "Cement", "Heating", "Other"
+        )},
+    )
+    calls = []
+
+    def create_market(**kwargs):
+        calls.append(kwargs["name"])
+        hydrogen.database.append(
+            {
+                "name": kwargs["name"],
+                "reference product": kwargs["reference_product"],
+                "location": "EUR",
+                "unit": kwargs["unit"],
+                "exchanges": [],
+            }
+        )
+        return {"EUR"}
+
+    hydrogen.process_and_add_markets = create_market
+
+    hydrogen._generate_sector_specific_hydrogen_markets({})
+    hydrogen._generate_sector_specific_hydrogen_markets({})
+
+    assert calls == ["market for hydrogen, gaseous, low pressure, for steel"]
+    assert hydrogen.consumer_backed_hydrogen_sector_market_regions == {
+        "Steel": ["EUR"]
+    }
+    assert hydrogen.generated_hydrogen_sector_market_regions == {
+        "Steel": ["EUR"]
+    }
+
+
+def test_orphan_sector_market_is_pruned_after_last_consumer_is_removed():
+    hydrogen = HydrogenMixin()
+    market = {
+        "name": "market for hydrogen, gaseous, low pressure, for steel",
+        "reference product": "hydrogen, gaseous, low pressure",
+        "location": "EUR",
+        "unit": "kilogram",
+        "exchanges": [],
+    }
+    hydrogen.database = [market]
+
+    removed = hydrogen._prune_orphan_hydrogen_sector_markets()
+
+    assert removed == 1
+    assert hydrogen.database == []
+
+
+def test_methanation_is_general_market_consumer_not_cement_market_backing():
+    hydrogen = HydrogenMixin()
+    hydrogen.regions = ["EUR", "World"]
+    hydrogen.geo = GeoStub()
+    hydrogen.database = [
+        {
+            "name": "methane, from biological methanation, with carbon from cement plant",
+            "reference product": "methane, high pressure",
+            "location": "EUR",
+            "unit": "cubic meter",
+            "exchanges": [
+                {
+                    "name": "market for hydrogen, gaseous, low pressure",
+                    "product": "hydrogen, gaseous, low pressure",
+                    "location": "EUR",
+                    "unit": "kilogram",
+                    "type": "technosphere",
+                    "amount": 0.2,
+                }
+            ],
+        }
+    ]
+
+    assert hydrogen._keep_general_hydrogen_market(hydrogen.database[0])
+    assert hydrogen._consumer_backed_hydrogen_sector_market_regions()["Cement"] == set()
+
+
+def test_existing_wrong_sector_and_cross_region_links_are_corrected_idempotently():
+    hydrogen = HydrogenMixin()
+    hydrogen.regions = ["EUR", "USA", "World"]
+    hydrogen.geo = GeoStub({"RER": "EUR"})
+    hydrogen.generated_hydrogen_sector_market_regions = {
+        "Heating": ["EUR", "USA"],
+        "Transport": ["EUR"],
+    }
+    generic_markets = [
+        {
+            "name": "market for hydrogen, gaseous, low pressure",
+            "reference product": "hydrogen, gaseous, low pressure",
+            "location": location,
+            "unit": "kilogram",
+            "exchanges": [],
+        }
+        for location in ("EUR", "USA", "World")
+    ]
+    boiler = {
+        "name": "heat production, hydrogen boiler",
+        "reference product": "heat",
+        "location": "USA",
+        "unit": "megajoule",
+        "exchanges": [
+            {
+                "name": "market for hydrogen, gaseous, low pressure, for transport",
+                "product": "hydrogen, gaseous, low pressure",
+                "location": "EUR",
+                "unit": "kilogram",
+                "type": "technosphere",
+                "amount": 0.01,
+                "input": ("old", "provider"),
+            }
+        ],
+    }
+    hydrogen.database = [*generic_markets, boiler]
+
+    assert hydrogen.relink_hydrogen_consumers_to_sector_markets() == 1
+    exchange = boiler["exchanges"][0]
+    assert exchange["name"].endswith("for heating")
+    assert exchange["location"] == "USA"
+    assert "input" not in exchange
+    assert hydrogen.matched_hydrogen_consumers[0]["hydrogen relinking reason"] == (
+        "wrong-sector correction"
+    )
+    assert hydrogen.relink_hydrogen_consumers_to_sector_markets() == 0
+
+
+def test_unavailable_sector_link_reverts_to_regional_generic_market():
+    hydrogen = HydrogenMixin()
+    hydrogen.regions = ["EUR", "World"]
+    hydrogen.geo = GeoStub({"RER": "EUR"})
+    hydrogen.generated_hydrogen_sector_market_regions = {}
+    generic = {
+        "name": "market for hydrogen, gaseous, low pressure",
+        "reference product": "hydrogen, gaseous, low pressure",
+        "location": "EUR",
+        "unit": "kilogram",
+        "exchanges": [],
+    }
+    consumer = {
+        "name": "chemical production",
+        "reference product": "chemical product",
+        "location": "RER",
+        "unit": "kilogram",
+        "exchanges": [
+            {
+                "name": "market for hydrogen, gaseous, low pressure, for chemicals",
+                "product": "hydrogen, gaseous, low pressure",
+                "location": "USA",
+                "unit": "kilogram",
+                "type": "technosphere",
+                "amount": 0.2,
+            }
+        ],
+    }
+    hydrogen.database = [generic, consumer]
+
+    assert hydrogen.relink_hydrogen_consumers_to_sector_markets() == 1
+    assert consumer["exchanges"][0]["name"] == (
+        "market for hydrogen, gaseous, low pressure"
+    )
+    assert consumer["exchanges"][0]["location"] == "EUR"
+
+
+def test_makeup_hydrogen_uses_exact_regional_market_and_removes_stale_input():
+    hydrogen = HydrogenMixin()
+    hydrogen.geo = GeoStub()
+    markets = [
+        {
+            "name": "market for hydrogen, gaseous, low pressure",
+            "reference product": "hydrogen, gaseous, low pressure",
+            "location": region,
+            "unit": "kilogram",
+            "exchanges": [],
+        }
+        for region in ("CHN", "USA", "WEU", "World")
+    ]
+    supports = []
+    for region, name, product in (
+        ("CHN", "hydrogen supply, distributed by pipeline", "hydrogen, gaseous, from pipeline"),
+        ("USA", "gaseous hydrogen production", "gaseous hydrogen production"),
+        ("WEU", "liquid hydrogen production", "liquid hydrogen production"),
+    ):
+        supports.append(
+            {
+                "name": name,
+                "reference product": product,
+                "location": region,
+                "unit": "kilogram",
+                "exchanges": [
+                    {
+                        "name": "market for hydrogen, gaseous, low pressure",
+                        "product": "hydrogen, gaseous, low pressure",
+                        "location": "World",
+                        "unit": "kilogram",
+                        "type": "technosphere",
+                        "amount": 0.005,
+                        "input": ("old", "provider"),
+                    }
+                ],
+            }
+        )
+    hydrogen.database = [*markets, *supports]
+
+    assert hydrogen._normalize_hydrogen_makeup_inputs() == 3
+    for support in supports:
+        exchange = support["exchanges"][0]
+        assert exchange["location"] == support["location"]
+        assert "input" not in exchange
+
+
+def test_regasification_leakage_makeup_is_added_only_once():
+    hydrogen = HydrogenMixin()
+    hydrogen.geo = GeoStub()
+    market = {
+        "name": "market for hydrogen, gaseous, low pressure",
+        "reference product": "hydrogen, gaseous, low pressure",
+        "location": "EUR",
+        "unit": "kilogram",
+        "exchanges": [],
+    }
+    regasification = {
+        "name": "liquid hydrogen regasification",
+        "reference product": "liquid hydrogen regasification",
+        "location": "EUR",
+        "unit": "kilogram",
+        "exchanges": [
+            {
+                "name": "Hydrogen",
+                "amount": 0.005,
+                "unit": "kilogram",
+                "categories": ("air",),
+                "type": "biosphere",
+            }
+        ],
+    }
+    hydrogen.database = [market, regasification]
+
+    assert hydrogen._balance_hydrogen_regasification_losses() == pytest.approx(0.005)
+    assert hydrogen._balance_hydrogen_regasification_losses() == 0
+    makeup = [
+        exchange
+        for exchange in regasification["exchanges"]
+        if exchange.get("name") == "market for hydrogen, gaseous, low pressure"
+    ]
+    assert len(makeup) == 1
+    assert makeup[0]["amount"] == pytest.approx(0.005)
+    assert makeup[0]["location"] == "EUR"
+
+
+def test_hydrogen_generation_regionalizes_support_before_makeup_normalization(monkeypatch):
+    hydrogen = HydrogenMixin()
+    calls = []
+    for method_name in (
+        "_regionalize_hydrogen_activities",
+        "_generate_hydrogen_conversion_datasets",
+        "_generate_supporting_hydrogen_datasets",
+        "_generate_hydrogen_truck_datasets",
+        "_normalize_hydrogen_makeup_inputs",
+        "_balance_hydrogen_regasification_losses",
+    ):
+        monkeypatch.setattr(
+            hydrogen,
+            method_name,
+            lambda name=method_name: calls.append(name),
+        )
+
+    hydrogen.generate_hydrogen_activities()
+
+    assert calls == [
+        "_regionalize_hydrogen_activities",
+        "_generate_hydrogen_conversion_datasets",
+        "_generate_supporting_hydrogen_datasets",
+        "_generate_hydrogen_truck_datasets",
+        "_normalize_hydrogen_makeup_inputs",
+        "_balance_hydrogen_regasification_losses",
+    ]
+
+
+def test_both_hydrogen_truck_inventories_are_regionalized():
+    hydrogen = HydrogenMixin()
+    hydrogen.regions = ["CHN", "USA", "WEU", "World"]
+    hydrogen.database = [
+        {
+            "name": "transport, hydrogen, gaseous, lorry, unspecified",
+            "reference product": "transport, hydrogen, gaseous, lorry, unspecified",
+            "location": "GLO",
+            "unit": "ton kilometer",
+        },
+        {
+            "name": "transport, hydrogen, liquid, lorry, unspecified",
+            "reference product": "transport, hydrogen, liquid, lorry, unspecified",
+            "location": "GLO",
+            "unit": "ton kilometer",
+        },
+    ]
+    captured = {}
+
+    def capture(**kwargs):
+        captured.update(kwargs)
+
+    hydrogen.process_and_add_activities = capture
+
+    hydrogen._generate_hydrogen_truck_datasets()
+
+    assert set(captured["mapping"]) == {
+        "compressed_gaseous_truck",
+        "liquid_hydrogen_truck",
+    }
+    assert captured["regions"] == ["CHN", "USA", "WEU"]

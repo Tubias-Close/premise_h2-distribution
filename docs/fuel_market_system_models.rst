@@ -48,6 +48,34 @@ relinked after a logistics or logging failure. This fail-fast behavior prevents 
 partially transformed scenario from appearing successful while omitting its intended
 hydrogen transport burdens or required diagnostics.
 
+Hydrogen market mass validation
+-------------------------------
+
+Hydrogen-market validation distinguishes the physical hydrogen production mix from
+logistics and conversion burdens. Production-supplier exchanges must provide one
+kilogram of gaseous hydrogen per kilogram of market output. Pipeline distribution,
+transport services, liquefaction, regasification, ammonia conversion, and cracking
+are auxiliary exchanges and are not added to that production-supply total, even when
+an auxiliary activity uses a kilogram reference unit. Make-up hydrogen required for
+losses remains part of the relevant logistics or conversion inventory and must not be
+confused with an additional market supplier.
+
+Hydrogen distribution finalization
+-----------------------------------
+
+Hydrogen truck and conversion inventories are regionalized before sector markets
+select suppliers. Their make-up hydrogen uses the generic market in the same IAM
+region where available, and regasification receives make-up equal to its direct
+hydrogen leakage. Sector markets are created only where IAM/logistics eligibility
+and an actual classified consumer coincide.
+
+After every update call on a scenario where fuels were already applied, *premise*
+runs an idempotent synchronization before caching: it repairs generic, wrong-sector,
+and cross-region links; returns unavailable or excluded consumers to the generic
+market; removes orphan sector markets; and runs the hydrogen integrity checks. A
+remaining major hydrogen issue raises an exception instead of allowing the invalid
+scenario to be cached or exported.
+
 LCIA regression baselines
 -------------------------
 
