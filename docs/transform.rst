@@ -2297,7 +2297,8 @@ coordinate names.
      - Cement aggregate
      - Fertilizer
    * - MESSAGE
-     - All-steel aggregate
+     - All-steel hydrogen demand; preprocessed H-DRI production supplies the
+       plant-count proxy
      - Cement aggregate
      - Resins, high-value chemicals, and methanol
    * - GCAM
@@ -2305,7 +2306,7 @@ coordinate names.
      - Cement aggregate
      - Chemicals aggregate
    * - TIAM-UCL
-     - Excluded: RCP19 provides H-DRI steel production but no hydrogen use
+     - Derived H-DRI/EAF hydrogen demand from preprocessed production
      - Not currently mapped
      - Not currently mapped
 
@@ -2319,14 +2320,43 @@ already-assigned cement demand, clipped at zero.
 
 .. note::
 
-   TIAM-UCL RCP19 contains
-   ``Production|Steel|Secondary|DRH2 and EAF`` in Mt steel/year. It does not
-   contain the corresponding hydrogen final-energy series needed to calculate
-   hydrogen demand. The production series remains mapped to
-   ``steel - primary - H-DRI`` in ``steel.yaml`` for the steel transformation,
-   but it is not treated as hydrogen consumption. TIAM-UCL steel coordinates
-   are therefore excluded from sector-specific hydrogen market creation rather
-   than estimated using an assumed hydrogen intensity.
+   Raw MESSAGE exports report finished DRI/EAF steel only as
+   ``Production|Iron and Steel|Steel|Primary|EAF|Sponge Iron`` while reporting
+   hydrogen-, gas-, and gas-with-CCS sponge-iron production separately. The
+   MESSAGE preprocessing workflow converts the sponge-iron routes to finished
+   steel with the model's annual World finished-DRI-to-sponge-iron ratio. It
+   writes mutually exclusive ``H-DRI/EAF`` and ``NG-DRI/EAF + CCS`` series and
+   assigns the remaining finished DRI/EAF production to ``NG-DRI/EAF``. The
+   three derived routes close exactly to the original aggregate in every
+   region and year, so the aggregate is retained only for auditing and is not
+   mapped a second time by premise. The NG-DRI residual acts as the available
+   non-H2/non-CCS DRI inventory proxy; it also contains MESSAGE's
+   coal-without-CCS sponge-iron remainder because premise has no separate
+   coal-DRI inventory category.
+
+   MESSAGE does not report route-specific final energy for this split.
+   Therefore premise keeps the baseline inventory efficiencies for all three
+   routes instead of assigning aggregate DRI/EAF energy use to the residual
+   NG-DRI route. Direct steel hydrogen demand continues to come from
+   ``Final Energy|Industry|Iron and Steel|Hydrogen``.
+
+.. note::
+
+   Raw TIAM-UCL exports contain ``Production|Steel|Secondary|DRH2 and EAF`` in
+   Mt steel/year but omit the corresponding hydrogen final-energy series. The
+   TIAM-UCL preprocessing workflow derives
+   ``Final Energy|Production|Steel|Secondary|DRH2 and EAF|Hydrogen`` with an
+   explicit 66.52317888 kg H2/t-steel default intensity, equivalent to
+   7.9827814656 PJ H2/Mt steel at the 120 GJ/t hydrogen lower heating value.
+   This default follows the premise H2-DRI/EAF inventory: 1.061992 kg H2-DRI
+   pig iron/kg steel multiplied by 0.06264 kg H2/kg H2-DRI pig iron.
+
+   The processing report identifies this coordinate as an inventory-aligned
+   derived proxy, not an original TIAM-UCL observation, and records any
+   user-supplied intensity override. Premise uses it for steel hydrogen demand
+   and distribution while retaining reported H-DRI/EAF production as the
+   steel-plant-count proxy. This gives 66,523.17888 t H2/year and two assumed
+   0.5 Mt/year plants per Mt of regional H-DRI/EAF production.
 
 Demand-node creation
 ~~~~~~~~~~~~~~~~~~~~
@@ -2470,12 +2500,15 @@ kilogram of low-pressure gaseous hydrogen:
    * - Other
      - ``market for hydrogen, gaseous, low pressure, for other end uses``
 
-A sector-region is eligible only when it has positive direct-hydrogen demand
-and at least one matching demand row with ``distribution_status = ok``. Steel
-and cement consequently also require their plant-production proxies to produce
-valid logistics. Eligibility and successful construction are tracked
-separately. If the market builder does not create an eligible regional market,
-that region is recorded as uncreated and is not used for relinking.
+A sector-region is IAM/logistics-eligible only when it has positive
+direct-hydrogen demand and at least one matching demand row with
+``distribution_status = ok``. Steel and cement consequently also require their
+plant-production proxies to produce valid logistics. A market is created only
+for the intersection of those eligible regions and regions containing at least
+one unambiguously classified final hydrogen consumer. Eligibility,
+consumer-backing, successful construction, regions excluded for lack of a
+consumer, and desired markets that could not be created are tracked separately.
+Markets that lose their last consumer are removed during synchronization.
 
 When several demand rows contribute to the same sector-region market, the share
 of distribution mode :math:`m` is weighted by annual hydrogen demand:
@@ -2523,14 +2556,24 @@ share. The on-site portion receives no transport or conversion exchange; it is
 the explicitly documented remainder of the market's hydrogen supply. Transport
 and conversion suppliers are selected first in the IAM region, then in mapped
 ecoinvent locations, ``RoW``, and ``GLO``. If none of those locations is
-available, the first matching supplier is used.
+available, the first matching supplier is used. The compressed-gas and liquid-
+hydrogen truck inventories are regionalized to the non-World IAM regions before
+this selection, while the ship inventories remain global.
+
+Hydrogen lost in logistics and conversion is replenished inside those support
+inventories through the geographically appropriate generic hydrogen market,
+never through a sector market. In particular, positive hydrogen leakage from
+regional regasification receives an equal make-up input; rerunning the operation
+adds only any remaining deficit. These loss inputs do not change the market
+invariant: production-mix suppliers still provide exactly one kilogram of
+hydrogen per kilogram of generic or sector-market output.
 
 Customer relinking
 ~~~~~~~~~~~~~~~~~~
 
 After sector markets have been created, the transformation inspects activities
-with a technosphere input whose name and product are exactly ``market for
-hydrogen, gaseous, low pressure`` and ``hydrogen, gaseous, low pressure``.
+with a technosphere input to either the generic or an already sector-specific
+low-pressure gaseous hydrogen market.
 Generated hydrogen suppliers and sector markets are not candidates for
 relinking. Shared transport and conversion activities are also kept
 sector-neutral to prevent circular or cross-sector supply chains.
@@ -2538,8 +2581,9 @@ sector-neutral to prevent circular or cross-sector supply chains.
 Routing is configured in
 ``premise/fuels/h2_decision_tree/hydrogen_consumer_routing.yaml``. Rules that
 keep an activity on the general market are evaluated first. These cover
-synthetic-fuel and syngas contexts, RWGS, selected methanol synthesis and
-distillation activities, and electricity supply classified as ISIC 3510.
+synthetic-fuel and syngas contexts, methanation, RWGS, selected methanol
+synthesis and distillation activities, and electricity supply classified as
+ISIC 3510.
 Remaining consumers are matched by activity name before ISIC classification:
 
 .. list-table:: Consumer-routing summary
@@ -2575,21 +2619,29 @@ transport from their activity context. ``Other`` is deliberately narrow and is
 not a fallback for every unmatched activity.
 
 A consumer is relinked only when exactly one sector matches and the
-corresponding sector market was actually created for the exchange location or
-its mapped IAM region. Ambiguous and unclassified consumers remain on the
-general market and are reported as unmatched. Configured general-market cases,
-shared logistics activities, and consumers whose target market is unavailable
-also stay on the general market and are reported as skipped. Successful links
-are recorded with the consumer, exchange amount and location, old market, new
-market, and assigned sector.
+corresponding sector market was actually created for the activity location or
+its mapped IAM region. Existing links to the wrong sector or IAM region are
+corrected. Ambiguous, unclassified, configured general-market, synthetic-fuel,
+and shared logistics consumers are restored to the geographically appropriate
+generic market, as are consumers whose target sector market is unavailable.
+Each correction records the old and new market names and locations and its
+reason.
+
+The synchronization is run once during fuel construction and again after all
+selected transformations, immediately before scenario caching. The final pass
+reconstructs the provider index from the current database, catches consumers
+created by later heat or transport updates, prunes orphan markets, refreshes
+diagnostics, and fails if a major hydrogen-integrity issue remains. It is
+idempotent across repeated, reordered, and incremental updates.
 
 Diagnostics
 ~~~~~~~~~~~
 
 The fuel change report contains one row for every demand node and one row for
 every successful sector-market relink. In addition, the transformed scenario
-stores the demand-node table; eligible, generated, uncreated, and skipped
-sector markets; and matched, unmatched, and skipped hydrogen consumers. These
+stores the demand-node table; eligible, consumer-backed, excluded-without-
+consumers, generated, uncreated, and skipped sector markets; and matched,
+unmatched, and skipped hydrogen consumers. These
 records distinguish a legitimately absent market from a routing or construction
 problem and make the full demand-to-consumer chain auditable.
 

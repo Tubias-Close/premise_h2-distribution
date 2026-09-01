@@ -5,6 +5,8 @@ All notable changes to this project are documented in this file.
 ## [2.4.9.2]
 
 ### Added
+- Added TIAM-UCL steel hydrogen distribution from the inventory-aligned
+  H-DRI/EAF final-energy proxy emitted by `iam-preprocessor`.
 - Databases exported to Brightway now carry scenario metadata in
   `bw2data.databases[name]`: `iam_model`, `pathway`, `representative_time`
   (ISO 8601), `ecoinvent_version`, `system_model`, `premise_version` and,
@@ -18,6 +20,13 @@ All notable changes to this project are documented in this file.
   dependencies.
 
 ### Changed
+- TIAM-UCL H-DRI/EAF production now supplies both the existing steel
+  production proxy and plant counts, while its separately derived hydrogen
+  coordinate supplies regional steel demand and logistics.
+- Mapped MESSAGE steel production to three mutually exclusive variables
+  produced by ``iam-preprocessor``: NG-DRI/EAF, NG-DRI/EAF with CCS, and
+  H-DRI/EAF. Aggregate DRI/EAF energy use is no longer assigned to the
+  residual NG route because route-specific energy use is unavailable.
 - Reused the superstructure preparation pipeline for scenario-array export,
   preserving existing superstructure CSV, Excel, and Feather behavior while
   applying the same loading, validation, duplicate aggregation, reporting, and
@@ -27,6 +36,12 @@ All notable changes to this project are documented in this file.
   loaded.
 
 ### Fixed
+- Replaced the TIAM-UCL steel exclusion with an explicit preprocessed hydrogen
+  demand coordinate, allowing consumer-backed regional steel hydrogen markets
+  without treating production in Mt/year as hydrogen energy.
+- Restored a MESSAGE H-DRI production proxy for hydrogen steel-plant sizing
+  without double counting the original aggregate DRI/EAF output or folding
+  explicit gas-with-CCS production into the non-CCS route.
 - Included matching production rows when changed self-consumption exchanges
   are netted into technosphere diagonals, preventing invalid or singular
   scenario matrices.
@@ -37,15 +52,28 @@ All notable changes to this project are documented in this file.
   no longer continue to sector-market creation or consumer relinking after
   either prerequisite fails, preventing apparently successful partial results
   without the intended transport burdens or diagnostics.
+- Validated hydrogen-market production supply independently from auxiliary
+  logistics exchanges, so kilogram-based pipeline burdens no longer appear as
+  additional hydrogen while genuine under- or over-supply remains a major
+  validation issue.
 
 ### Documentation
+- Documented the TIAM-UCL H-DRI hydrogen intensity, unit conversion, inventory
+  boundary, proxy status, and demand-node implications.
+- Documented the MESSAGE sponge-iron-to-finished-steel derivation, its exact
+  regional route-closure invariant, and the treatment of route energy use.
 - Added a complete three-pathway IMAGE 2050 example for the
   `ecoinvent-3.12-cutoff` project to the examples notebook, loading guide,
   and README, including multi-activity scoring, base-database validation,
   synchronized scenario selection, and wraparound behavior.
 - Documented mandatory hydrogen logistics and audit-log failure handling.
+- Documented the hydrogen production-supply boundary used by fuel validation.
 
 ### Tests
+- Added TIAM-UCL mapping, hydrogen classification, mass conversion, plant-node,
+  decision-rule, and logistics-status regression coverage.
+- Added mapping and hydrogen-logistics regression tests for the processed
+  MESSAGE NG-DRI, NG-DRI+CCS, and H-DRI production proxies.
 - Added unit and orchestration coverage for scenario ordering, values, indices,
   technosphere flips, biosphere placement, structural zeros, validation errors,
   atomic ZIP output, and production/self-consumption netting.
@@ -53,6 +81,8 @@ All notable changes to this project are documented in this file.
   generic make-up hydrogen inputs.
 - Added regression coverage proving that logistics, audit-log, and hydrogen
   market-creation failures propagate before later consumer relinking.
+- Added hydrogen-market validation coverage for auxiliary logistics,
+  under-supply, over-supply, and unchanged non-hydrogen fuel behavior.
 - Validated the export end to end with IMAGE SSP1-L, SSP2-M, and SSP3-H for
   2050, checking three activities against the original database and confirming
   deterministic scenario selection and wraparound.
