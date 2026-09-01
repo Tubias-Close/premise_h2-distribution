@@ -615,7 +615,7 @@ def test_final_energy_based_chemical_market_needs_no_production_proxy():
     assert "Chemicals" in hydrogen.generated_hydrogen_sector_markets
 
 
-def test_tiam_hydrogen_final_energy_excludes_steel():
+def test_tiam_hydrogen_final_energy_uses_derived_steel_proxy():
     hydrogen = HydrogenMixin()
     hydrogen.model = "tiam-ucl"
     hydrogen.scenario = "SSP2-RCP19"
@@ -630,9 +630,42 @@ def test_tiam_hydrogen_final_energy_excludes_steel():
 
     result = hydrogen._get_hydrogen_final_energy_by_subsector()
 
-    assert result["subsector"].tolist() == ["Transport"]
-    assert result["hydrogen_final_energy_ej_per_year"].item() == 2
-    assert "Industry - Steel" not in result["source_variables"].item()
+    assert result["subsector"].tolist() == ["Steel", "Transport"]
+    assert result["hydrogen_final_energy_ej_per_year"].tolist() == [10, 2]
+    steel = result.loc[result["subsector"].eq("Steel")].iloc[0]
+    assert steel["source_variables"] == "Industry - Steel - H-DRI/EAF - H2"
+
+
+def test_tiam_derived_h_dri_demand_creates_steel_plant_logistics():
+    hydrogen = HydrogenMixin()
+    hydrogen.model = "tiam-ucl"
+    hydrogen.scenario = "SSP2-RCP19"
+    hydrogen.year = 2050
+    hydrogen.iam_data = make_iam_data(
+        variables=[
+            "Industry - Steel - H-DRI/EAF - H2",
+            "steel - primary - H-DRI",
+        ],
+        regions=["WEU", "World"],
+        values=[
+            [[0.0079827814656], [0.0079827814656]],
+            [[1.0], [1.0]],
+        ],
+    )
+    hydrogen.iam_data.data = hydrogen.iam_data.production_volumes
+    hydrogen.database = []
+
+    hydrogen.set_hydrogen_logistics()
+
+    steel = hydrogen.hydrogen_demand_nodes.loc[
+        hydrogen.hydrogen_demand_nodes["subsector"].eq("Steel")
+    ].iloc[0]
+    assert steel["demand_node_type"] == "steel_plants"
+    assert steel["activity_proxy_value"] == pytest.approx(1.0)
+    assert steel["demand_nodes"] == pytest.approx(2.0)
+    assert steel["hydrogen_demand_t_per_year"] == pytest.approx(66_523.17888)
+    assert steel["distribution_rule"] == "default_large_demand"
+    assert steel["distribution_status"] == "ok"
 
 
 def test_sector_hydrogen_market_gets_weighted_transport_exchanges():

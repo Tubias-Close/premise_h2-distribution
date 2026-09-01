@@ -2306,7 +2306,7 @@ coordinate names.
      - Cement aggregate
      - Chemicals aggregate
    * - TIAM-UCL
-     - Excluded: RCP19 provides H-DRI steel production but no hydrogen use
+     - Derived H-DRI/EAF hydrogen demand from preprocessed production
      - Not currently mapped
      - Not currently mapped
 
@@ -2342,14 +2342,21 @@ already-assigned cement demand, clipped at zero.
 
 .. note::
 
-   TIAM-UCL RCP19 contains
-   ``Production|Steel|Secondary|DRH2 and EAF`` in Mt steel/year. It does not
-   contain the corresponding hydrogen final-energy series needed to calculate
-   hydrogen demand. The production series remains mapped to
-   ``steel - primary - H-DRI`` in ``steel.yaml`` for the steel transformation,
-   but it is not treated as hydrogen consumption. TIAM-UCL steel coordinates
-   are therefore excluded from sector-specific hydrogen market creation rather
-   than estimated using an assumed hydrogen intensity.
+   Raw TIAM-UCL exports contain ``Production|Steel|Secondary|DRH2 and EAF`` in
+   Mt steel/year but omit the corresponding hydrogen final-energy series. The
+   TIAM-UCL preprocessing workflow derives
+   ``Final Energy|Production|Steel|Secondary|DRH2 and EAF|Hydrogen`` with an
+   explicit 66.52317888 kg H2/t-steel default intensity, equivalent to
+   7.9827814656 PJ H2/Mt steel at the 120 GJ/t hydrogen lower heating value.
+   This default follows the premise H2-DRI/EAF inventory: 1.061992 kg H2-DRI
+   pig iron/kg steel multiplied by 0.06264 kg H2/kg H2-DRI pig iron.
+
+   The processing report identifies this coordinate as an inventory-aligned
+   derived proxy, not an original TIAM-UCL observation, and records any
+   user-supplied intensity override. Premise uses it for steel hydrogen demand
+   and distribution while retaining reported H-DRI/EAF production as the
+   steel-plant-count proxy. This gives 66,523.17888 t H2/year and two assumed
+   0.5 Mt/year plants per Mt of regional H-DRI/EAF production.
 
 Demand-node creation
 ~~~~~~~~~~~~~~~~~~~~

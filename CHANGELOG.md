@@ -5,6 +5,8 @@ All notable changes to this project are documented in this file.
 ## [2.4.9.2]
 
 ### Added
+- Added TIAM-UCL steel hydrogen distribution from the inventory-aligned
+  H-DRI/EAF final-energy proxy emitted by `iam-preprocessor`.
 - Databases exported to Brightway now carry scenario metadata in
   `bw2data.databases[name]`: `iam_model`, `pathway`, `representative_time`
   (ISO 8601), `ecoinvent_version`, `system_model`, `premise_version` and,
@@ -18,6 +20,9 @@ All notable changes to this project are documented in this file.
   dependencies.
 
 ### Changed
+- TIAM-UCL H-DRI/EAF production now supplies both the existing steel
+  production proxy and plant counts, while its separately derived hydrogen
+  coordinate supplies regional steel demand and logistics.
 - Mapped MESSAGE steel production to three mutually exclusive variables
   produced by ``iam-preprocessor``: NG-DRI/EAF, NG-DRI/EAF with CCS, and
   H-DRI/EAF. Aggregate DRI/EAF energy use is no longer assigned to the
@@ -31,6 +36,9 @@ All notable changes to this project are documented in this file.
   loaded.
 
 ### Fixed
+- Replaced the TIAM-UCL steel exclusion with an explicit preprocessed hydrogen
+  demand coordinate, allowing consumer-backed regional steel hydrogen markets
+  without treating production in Mt/year as hydrogen energy.
 - Restored a MESSAGE H-DRI production proxy for hydrogen steel-plant sizing
   without double counting the original aggregate DRI/EAF output or folding
   explicit gas-with-CCS production into the non-CCS route.
@@ -50,6 +58,8 @@ All notable changes to this project are documented in this file.
   validation issue.
 
 ### Documentation
+- Documented the TIAM-UCL H-DRI hydrogen intensity, unit conversion, inventory
+  boundary, proxy status, and demand-node implications.
 - Documented the MESSAGE sponge-iron-to-finished-steel derivation, its exact
   regional route-closure invariant, and the treatment of route energy use.
 - Added a complete three-pathway IMAGE 2050 example for the
@@ -60,6 +70,8 @@ All notable changes to this project are documented in this file.
 - Documented the hydrogen production-supply boundary used by fuel validation.
 
 ### Tests
+- Added TIAM-UCL mapping, hydrogen classification, mass conversion, plant-node,
+  decision-rule, and logistics-status regression coverage.
 - Added mapping and hydrogen-logistics regression tests for the processed
   MESSAGE NG-DRI, NG-DRI+CCS, and H-DRI production proxies.
 - Added unit and orchestration coverage for scenario ordering, values, indices,

@@ -50,9 +50,8 @@ IMAGE_STEEL_HYDROGEN_DETAILS = (
 
 # Candidate groups are ordered by preference. All candidates, including
 # fallbacks, are reserved so an unused aggregate/detail level cannot leak into
-# the Other end-use market. TIAM-UCL intentionally excludes steel: its RCP19
-# output contains DRH2-and-EAF steel production, but no corresponding hydrogen
-# final-energy series from which sector demand could be calculated.
+# the Other end-use market. TIAM-UCL steel uses the explicit derived H-DRI
+# hydrogen coordinate added by the IAM preprocessing workflow.
 HYDROGEN_FINAL_ENERGY_RULES = {
     "remind": {
         "Steel": (("Industry - Steel - All steel - H2",),),
@@ -100,10 +99,9 @@ HYDROGEN_FINAL_ENERGY_RULES = {
         "Chemicals": (("Industry - Chemicals - Chemicals - H2",),),
     },
     "tiam-ucl": {
-        "Steel": (),
+        "Steel": (("Industry - Steel - H-DRI/EAF - H2",),),
         "Cement": (),
         "Chemicals": (),
-        "excluded_prefixes": ("Industry - Steel - ",),
     },
 }
 
