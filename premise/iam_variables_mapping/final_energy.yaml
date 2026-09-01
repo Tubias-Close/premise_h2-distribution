@@ -1865,6 +1865,7 @@ Industry - Steel - H-DRI/EAF - H2:
       reference product: heat
   iam_aliases:
     image: Final Energy|Industry|Iron and Steel|H-DRI/EAF|Hydrogen
+    tiam-ucl: Final Energy|Production|Steel|Secondary|DRH2 and EAF|Hydrogen
 Industry - Steel - SR/BOF - H2:
   ecoinvent_aliases:
     fltr:
