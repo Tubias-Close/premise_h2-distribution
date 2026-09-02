@@ -1840,13 +1840,30 @@ class TransportValidation(BaseDatasetValidator):
             if a["name"].startswith("transport, ")
             and ", unspecified" in a["name"]
         ]:
-            # check that all transport exchanges are differently named
-            names = [
-                exc["name"]
+            exchanges = [
+                exc
                 for exc in act["exchanges"]
                 if exc["type"] == "technosphere"
             ]
-            if len(names) != len(set(names)):
+
+            if act.get("emptied", False):
+                # Emptied global activities aggregate regional proxies. Their
+                # supplier names can therefore repeat while their locations differ.
+                identities = [
+                    (
+                        exc["name"],
+                        exc.get("product"),
+                        exc.get("location"),
+                        exc.get("unit"),
+                    )
+                    for exc in exchanges
+                ]
+            else:
+                # Fleet-market inputs are expected to represent distinct vehicle
+                # technologies, and must therefore remain unique by name.
+                identities = [exc["name"] for exc in exchanges]
+
+            if len(identities) != len(set(identities)):
                 message = "Duplicate transport exchanges"
                 self.log_issue(
                     act,
