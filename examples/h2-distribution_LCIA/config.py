@@ -1,8 +1,9 @@
-"""Configuration for the hydrogen-distribution LCIA example.
+"""Operational configuration for the hydrogen-distribution LCIA example.
 
 Project and database names are deliberately selected in the notebook and passed to
 ``run_analysis``.  Everything in this module is declarative and importing it has no
-Brightway side effects.
+Brightway side effects. Semantic activity, scenario, method, and plot mappings live
+only in ``LCIA_mapping_h2.py``.
 """
 
 from pathlib import Path
@@ -20,21 +21,6 @@ SECTOR_LOCATION_FALLBACKS = ("EUR", "WEU")
 TOP_N_PROCESSES = 10
 RECONCILIATION_RTOL = 1e-7
 
-PREMISE_GWP_METHOD = ("IPCC 2021", "climate change", "GWP 100a, incl. H")
-CED_METHODS = (
-    (
-        "Cumulative Energy Demand (CED)",
-        "energy resources: non-renewable",
-        "energy content (HHV)",
-    ),
-    (
-        "Cumulative Energy Demand (CED)",
-        "energy resources: renewable",
-        "energy content (HHV)",
-    ),
-)
-EXCLUDED_METHOD_TERMS = ("no LT", "EN15804")
-
 EXPECTED_SECTOR_MARKETS = {
     "Transport": f"{GENERIC_MARKET_NAME}, for transport",
     "Chemicals": f"{GENERIC_MARKET_NAME}, for chemicals",
@@ -43,19 +29,6 @@ EXPECTED_SECTOR_MARKETS = {
     "Heating": f"{GENERIC_MARKET_NAME}, for heating",
     "Other end uses": f"{GENERIC_MARKET_NAME}, for other end uses",
 }
-
-SPECIFIC_IMPACT_CATEGORY_ORDER = (
-    "acidification",
-    "climate change — GWP 100a, incl. H (premise_gwp)",
-    "ecotoxicity: freshwater",
-    "energy resources: non-renewable",
-    "eutrophication: freshwater",
-    "eutrophication: marine",
-    "human toxicity: carcinogenic",
-    "human toxicity: non-carcinogenic",
-    "material resources: metals/minerals",
-    "particulate matter formation",
-)
 
 STEEL_MARKET_NAME = f"{GENERIC_MARKET_NAME}, for steel"
 EXCLUDED_STEEL_LOCATION = "WORLD"

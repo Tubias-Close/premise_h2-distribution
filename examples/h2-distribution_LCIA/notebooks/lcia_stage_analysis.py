@@ -1,6 +1,8 @@
 """Life-cycle-stage contribution helpers for the European hydrogen-market notebook."""
 
 from collections import defaultdict
+from pathlib import Path
+import sys
 
 import bw2calc as bc
 import bw2data as bd
@@ -8,56 +10,27 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-HYDROGEN_PRODUCT = "hydrogen, gaseous, low pressure"
+# The notebook helper contains calculations only. All semantic names and plot
+# families come from the single canonical mapping module in the parent folder.
+ANALYSIS_DIR = Path(__file__).resolve().parent.parent
+if str(ANALYSIS_DIR) not in sys.path:
+    sys.path.insert(0, str(ANALYSIS_DIR))
 
-TRANSPORT_NAMES = {
-    "transport, hydrogen, gaseous, lorry, unspecified": "Gaseous H2 truck",
-    "transport, hydrogen, liquid, lorry, unspecified": "Liquid H2 truck",
-    "hydrogen supply, distributed by pipeline": "Pipeline distribution",
-    "transport, freight, sea, tanker for liquefied ammonia, ammonia and mdo": "Ammonia tanker",
-    "transport, freight, sea, tanker for liquefied hydrogen, heavy fuel oil": "Liquid H2 tanker",
-}
-CONVERSION_NAMES = {
-    "gaseous hydrogen production": "Compression (lorry)",
-    "liquid hydrogen production": "Liquefaction",
-    "liquid ammonia production": "Ammonia production",
-    "market group for electricity, low voltage": "Compression (pipeline)",
-    "compressor assembly for transmission hydrogen pipeline": "Compression (pipeline)",
-}
-RECONVERSION_NAMES = {
-    "ammonia cracking": "Ammonia cracking",
-    "liquid hydrogen regasification": "Hydrogen regasification",
-}
-
-BLUE_DISTRIBUTION_PROCESSES = {
-    "Gaseous H2 truck",
-    "Liquid H2 truck",
-    "Liquid H2 tanker",
-    "Compression (lorry)",
-    "Liquefaction",
-    "Hydrogen regasification",
-}
-YELLOW_DISTRIBUTION_PROCESSES = {
-    "Pipeline distribution",
-    "Compression (pipeline)",
-}
-TURQUOISE_DISTRIBUTION_PROCESSES = {
-    "Ammonia tanker",
-    "Ammonia production",
-    "Ammonia cracking",
-}
-
-# Samples deliberately avoid the almost-white ends of the sequential maps.
-COLOR_FAMILY_CMAPS = {
-    "grey": ("Greys", 0.38, 0.82),
-    "blue": ("Blues", 0.42, 0.86),
-    "yellow": ("YlOrBr", 0.22, 0.58),
-    "turquoise": ("GnBu", 0.32, 0.72),
-}
-
-
-def _normalized(value):
-    return " ".join(str(value or "").replace(" ,", ",").split()).lower()
+from LCIA_mapping_h2 import (  # noqa: E402
+    CONVERSION_NAMES,
+    DIRECT_EMISSION_TYPES,
+    FAMILY_STYLES,
+    LEAKAGE_COLORS,
+    LEAKAGE_CONTRIBUTION_TYPES,
+    PIPELINE_TRANSPORT_ACTIVITY_NAME,
+    PRODUCTION_FAMILY,
+    SHARED_DISTRIBUTION_FAMILY,
+    classify_market_branch as _classify_market_branch,
+    classify_production_input as _classify_production_input,
+    distribution_family,
+    is_hydrogen_market as _is_hydrogen_market,
+    normalized as _normalized,
+)
 
 
 def _reference_output_amount(activity):
@@ -74,15 +47,6 @@ def _reference_output_amount(activity):
             f"Reference production amount is zero for {activity.key}."
         )
     return amount
-
-
-def _is_hydrogen_market(activity):
-    return (
-        _normalized(activity.get("name")).startswith(
-            "market for hydrogen, gaseous, low pressure"
-        )
-        and _normalized(activity.get("reference product")) == HYDROGEN_PRODUCT
-    )
 
 
 def _collect_market_branches(activity, demand_amount, path=(), visited=()):
@@ -130,49 +94,12 @@ def _collect_market_branches(activity, demand_amount, path=(), visited=()):
     return branches, market_biosphere
 
 
-def _classify_market_branch(provider):
-    name = _normalized(provider.get("name"))
-    if name in TRANSPORT_NAMES:
-        return (
-            "Distribution",
-            "Transport",
-            TRANSPORT_NAMES[name],
-            "exact transport activity",
-        )
-    if name in CONVERSION_NAMES:
-        return (
-            "Distribution",
-            "Conversion",
-            CONVERSION_NAMES[name],
-            "exact conversion activity",
-        )
-    if (
-        name in RECONVERSION_NAMES
-        or "ammonia cracking" in name
-        or "regasification" in name
-    ):
-        return (
-            "Distribution",
-            "Reconversion",
-            RECONVERSION_NAMES.get(name, provider.get("name")),
-            "reconversion activity",
-        )
-    if name.startswith("hydrogen production"):
-        return (
-            "Production",
-            "Production technology",
-            _short_production_name(provider.get("name")),
-            "hydrogen production activity",
-        )
-    raise ValueError(
-        "Unclassified direct hydrogen-market input: "
-        f"{provider.get('name')} | {provider.get('reference product')} | {provider.get('unit')} | {provider.key}"
-    )
-
-
 def _pipeline_conversion_inputs(activity, demand_amount):
     """Return inputs that provide compression within pipeline distribution."""
-    if _normalized(activity.get("name")) != "hydrogen supply, distributed by pipeline":
+    if (
+        _normalized(activity.get("name"))
+        != PIPELINE_TRANSPORT_ACTIVITY_NAME
+    ):
         return []
 
     scale = demand_amount / _reference_output_amount(activity)
@@ -191,70 +118,6 @@ def _pipeline_conversion_inputs(activity, demand_amount):
     return inputs
 
 
-def _short_production_name(name):
-    text = _normalized(name)
-    if "pem electrolysis" in text:
-        return "PEM electrolysis"
-    if "alkaline electrolysis" in text:
-        return "Alkaline electrolysis"
-    if "woody biomass" in text and "with ccs" in text:
-        return "Biomass gasification with CCS"
-    if "woody biomass" in text:
-        return "Biomass gasification"
-    if "coal gasification" in text and "with ccs" in text:
-        return "Coal gasification with CCS"
-    if "steam methane reforming" in text and "with ccs" in text:
-        return "Steam methane reforming with CCS"
-    if "steam methane reforming" in text:
-        return "Steam methane reforming"
-    return name
-
-
-def _classify_production_input(provider):
-    name = _normalized(provider.get("name"))
-    product = _normalized(provider.get("reference product"))
-    unit = _normalized(provider.get("unit"))
-    text = f"{name} | {product}"
-
-    if "electricity" in text:
-        return "Electricity"
-    if "heat" in text or "steam" in text:
-        return "Heat"
-    if "water" in text:
-        return "Water"
-    if "carbon dioxide, captured" in text or "carbon capture" in text:
-        return "CO2 capture and storage"
-    if any(term in text for term in ("wood", "biomass", "biomethane")):
-        return "Biomass feedstock"
-    if any(
-        term in text
-        for term in (
-            "natural gas",
-            "hard coal",
-            "lignite",
-            "petroleum",
-            "coke",
-        )
-    ):
-        return "Fossil feedstock"
-    if name.startswith("transport") or "transport," in product:
-        return "Transport services"
-    if name.startswith("treatment") or "waste" in product:
-        return "Waste treatment"
-    if unit in {"unit", "kilometer"} or any(
-        term in text
-        for term in (
-            "construction",
-            "factory",
-            "plant",
-            "electrolyzer",
-            "pipeline",
-        )
-    ):
-        return "Infrastructure"
-    return "Other raw materials"
-
-
 def _method_cf_lookup(method):
     return {
         int(flow_id): float(cf) for flow_id, cf in bd.Method(method).load()
@@ -270,10 +133,11 @@ def _direct_biosphere_rows(
         flow = exc.input
         flow_name = str(flow.get("name", ""))
         scaled_amount = scale * float(exc.get("amount", 0.0))
-        if classify_transport_leakage and flow_name.lower() == "hydrogen":
-            contribution_type = "Hydrogen leakage"
-        elif classify_transport_leakage and flow_name.lower() == "ammonia":
-            contribution_type = "Ammonia leakage"
+        if (
+            classify_transport_leakage
+            and flow_name.lower() in DIRECT_EMISSION_TYPES
+        ):
+            contribution_type = DIRECT_EMISSION_TYPES[flow_name.lower()]
         else:
             contribution_type = "Other direct emissions"
         rows.append(
@@ -318,29 +182,28 @@ def _append_score_fields(row, total_score):
 def _distribution_color_family(process):
     """Return the route palette for a distribution process or its leakage."""
     base_process = str(process).split(" — ", maxsplit=1)[-1]
-    if base_process in BLUE_DISTRIBUTION_PROCESSES:
-        return "blue"
-    if base_process in YELLOW_DISTRIBUTION_PROCESSES:
-        return "yellow"
-    if base_process in TURQUOISE_DISTRIBUTION_PROCESSES:
-        return "turquoise"
+    # Aggregated distribution rows have no underlying route. Keep them in the
+    # explicitly configured shared-distribution family.
     if base_process in {"Hydrogen distribution", "distribution", "market"}:
-        return "blue"
-    raise ValueError(f"No distribution color family mapped for {process!r}.")
+        return SHARED_DISTRIBUTION_FAMILY
+    return distribution_family(process)
 
 
 def _color_map_by_family(items, family_by_item):
     """Assign a distinct shade to each item within its semantic color family."""
     ordered_items = list(dict.fromkeys(items))
     colors = {}
-    for family, (cmap_name, low, high) in COLOR_FAMILY_CMAPS.items():
+    for family, style in FAMILY_STYLES.items():
         family_items = [
             item for item in ordered_items if family_by_item(item) == family
         ]
         if not family_items:
             continue
+        # Avoid the almost-white ends of sequential maps so every bar remains
+        # readable. Production uses the canonical Greys family.
+        low, high = (0.38, 0.82)
         positions = np.linspace(low, high, len(family_items))
-        cmap = plt.get_cmap(cmap_name)
+        cmap = plt.get_cmap(style["cmap"])
         colors.update(
             {
                 item: cmap(position)
@@ -361,9 +224,7 @@ def stage_layer1_color_map(layer1_df):
 
     def family(component):
         if component_groups[component] == "Production technology":
-            return "grey"
-        if component.startswith("Ammonia leakage"):
-            return "turquoise"
+            return PRODUCTION_FAMILY
         return _distribution_color_family(component)
 
     return _color_map_by_family(component_groups, family)
@@ -429,7 +290,7 @@ def analyze_hydrogen_life_cycle_stages(
                 row["score"]
                 for row in direct_rows
                 if row["contribution type"]
-                in {"Hydrogen leakage", "Ammonia leakage"}
+                in LEAKAGE_CONTRIBUTION_TYPES
             )
 
             audit_rows.append(
@@ -515,9 +376,7 @@ def analyze_hydrogen_life_cycle_stages(
                     provider, demand_amount
                 )
                 conversion_score = sum(
-                    scorer.score(
-                        item["provider"], item["demand amount"]
-                    )
+                    scorer.score(item["provider"], item["demand amount"])
                     for item in conversion_inputs
                 )
                 process_nonleakage = (
@@ -576,7 +435,7 @@ def analyze_hydrogen_life_cycle_stages(
                             "classification rule": "pipeline compression input",
                         }
                     )
-                for leakage_type in ("Hydrogen leakage", "Ammonia leakage"):
+                for leakage_type in LEAKAGE_CONTRIBUTION_TYPES:
                     leakage = [
                         r
                         for r in direct_rows
@@ -611,15 +470,11 @@ def analyze_hydrogen_life_cycle_stages(
         for item in market_biosphere:
             flow = item["exchange"].input
             flow_name = str(flow.get("name", ""))
-            if flow_name.lower() not in {"hydrogen", "ammonia"}:
+            if flow_name.lower() not in DIRECT_EMISSION_TYPES:
                 raise ValueError(
                     f"Unclassified direct market emission {flow_name!r} in {market_label}."
                 )
-            leakage_type = (
-                "Hydrogen leakage"
-                if flow_name.lower() == "hydrogen"
-                else "Ammonia leakage"
-            )
+            leakage_type = DIRECT_EMISSION_TYPES[flow_name.lower()]
             leakage_score = item["scaled amount"] * cf_lookup.get(
                 int(flow.id), 0.0
             )
@@ -629,9 +484,7 @@ def analyze_hydrogen_life_cycle_stages(
                 dict.fromkeys(distribution_transport_components)
             )
             route_component = (
-                route_components[0]
-                if len(route_components) == 1
-                else "market"
+                route_components[0] if len(route_components) == 1 else "market"
             )
             distribution_rows.append(
                 _append_score_fields(
@@ -866,9 +719,7 @@ def plot_production_layer2(
     colors = {
         group: palette(i % palette.N) for i, group in enumerate(input_groups)
     }
-    colors.update(
-        {"Hydrogen leakage": "#d62728", "Ammonia leakage": "#9467bd"}
-    )
+    colors.update(LEAKAGE_COLORS)
 
     fig, axes = plt.subplots(
         len(technologies),
@@ -914,13 +765,13 @@ def plot_production_layer2(
     plt.show()
 
 
-def plot_distribution_layer2(distribution_df, market_order, label_threshold=None):
+def plot_distribution_layer2(
+    distribution_df, market_order, label_threshold=None
+):
     processes = distribution_df["process"].drop_duplicates().tolist()
     colors = distribution_process_color_map(processes)
 
-    fig, ax = plt.subplots(
-        figsize=(10, max(6, 0.75 * len(market_order) + 2))
-    )
+    fig, ax = plt.subplots(figsize=(10, max(6, 0.75 * len(market_order) + 2)))
     unit = distribution_df["unit"].iloc[0]
     _plot_signed_stacks(
         ax,

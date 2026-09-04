@@ -20,10 +20,11 @@ tables or plots only when the user is intentionally refreshing baselines.
 
 ## Selection Is Part of the Result
 
-`config.py` defines the generic market, reference product, unit, target
-location, sector-market names, location fallbacks, methods, output names,
-functional unit, and reconciliation tolerance. Treat these as one configuration
-contract with `mapping.py`, `run_analysis.py`, and the notebook.
+`config.py` defines operational market-selection, output, functional-unit, and
+reconciliation settings. `LCIA_mapping_h2.py` is the only canonical source for
+scenario metadata, exact LCIA methods, activity classifications, reporting
+names, route groups, and semantic plot styles. Treat these as one configuration
+contract with `run_analysis.py` and the notebooks.
 
 `select_markets()` requires exactly one generic low-pressure market at the
 configured target location. Sector markets may use configured location
@@ -38,10 +39,10 @@ kilogram H2.
 
 ## Methods and Interpretation
 
-Use the exact configured Premise GWP, CED, and selected EF 3.1 methods. Report
-missing or ambiguous methods rather than silently substituting similarly named
-ones. Preserve signed contributions: credits and avoided burdens can be
-negative and should not be clipped merely for plotting.
+Use the exact methods listed in `LCIA_mapping_h2.METHOD_LABELS`. Report missing
+or ambiguous methods rather than silently substituting similarly named ones.
+Preserve signed contributions: credits and avoided burdens can be negative and
+should not be clipped merely for plotting.
 
 Separate conclusions about:
 
@@ -74,7 +75,8 @@ normalization, classification, or numerical precision first.
 ## Verification
 
 For pure selection/classification changes, add synthetic tests around the
-functions in `mapping.py` or `run_analysis.py` where practical. For a live run:
+functions in `LCIA_mapping_h2.py` or `run_analysis.py` where practical. For a
+live run:
 
 1. Run with `export=False` first when only diagnostics are needed.
 2. Inspect selection and method tables before score comparisons.

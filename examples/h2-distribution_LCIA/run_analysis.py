@@ -20,8 +20,12 @@ from premise_gwp import add_premise_gwp
 
 try:
     import config as cfg
-    from mapping import (
+    import LCIA_mapping_h2 as h2map
+    from LCIA_mapping_h2 import (
         CONVERSION_NAMES,
+        DIRECT_EMISSION_TYPES,
+        LEAKAGE_CONTRIBUTION_TYPES,
+        PIPELINE_TRANSPORT_ACTIVITY_NAME,
         classify_market_branch,
         classify_production_input,
         impact_category_label,
@@ -30,8 +34,12 @@ try:
     )
 except ImportError:  # pragma: no cover - supports package-style imports
     from . import config as cfg
-    from .mapping import (
+    from . import LCIA_mapping_h2 as h2map
+    from .LCIA_mapping_h2 import (
         CONVERSION_NAMES,
+        DIRECT_EMISSION_TYPES,
+        LEAKAGE_CONTRIBUTION_TYPES,
+        PIPELINE_TRANSPORT_ACTIVITY_NAME,
         classify_market_branch,
         classify_production_input,
         impact_category_label,
@@ -133,7 +141,7 @@ def _collect_market_branches(activity, demand_amount, path=(), visited=()):
 def _pipeline_conversion_inputs(activity, demand_amount):
     if (
         normalized(activity.get("name"))
-        != "hydrogen supply, distributed by pipeline"
+        != PIPELINE_TRANSPORT_ACTIVITY_NAME
     ):
         return []
     scale = demand_amount / _reference_output_amount(activity)
@@ -168,12 +176,9 @@ def _direct_biosphere_rows(activity, demand_amount, cf_lookup):
         flow = exchange.input
         flow_name = str(flow.get("name", ""))
         scaled_amount = scale * float(exchange.get("amount", 0.0))
-        if flow_name.lower() == "hydrogen":
-            contribution_type = "Hydrogen leakage"
-        elif flow_name.lower() == "ammonia":
-            contribution_type = "Ammonia leakage"
-        else:
-            contribution_type = "Other direct emissions"
+        contribution_type = DIRECT_EMISSION_TYPES.get(
+            flow_name.lower(), "Other direct emissions"
+        )
         rows.append(
             {
                 "flow": flow_name,
@@ -296,30 +301,18 @@ def select_markets(database):
 
 
 def select_methods():
-    ef31_methods = sorted(
-        [
-            method
-            for method in bd.methods
-            if len(method) >= 2
-            and method[0] == "EF v3.1"
-            and not any(
-                term.lower() in " | ".join(method).lower()
-                for term in cfg.EXCLUDED_METHOD_TERMS
-            )
-        ]
-    )
-    if not ef31_methods:
-        raise LookupError(
-            "No EF v3.1 methods were found in the current Brightway project."
-        )
-    missing_ced = [
-        method for method in cfg.CED_METHODS if method not in bd.methods
+    """Select only the exact methods declared by the canonical mapping."""
+    lcia_methods = list(h2map.SELECTED_METHODS)
+    missing_methods = [
+        method for method in lcia_methods if method not in bd.methods
     ]
-    if missing_ced:
+    if missing_methods:
         raise LookupError(
-            f"Required CED methods are unavailable: {missing_ced}"
+            f"Configured LCIA methods are unavailable: {missing_methods}"
         )
-    lcia_methods = [*ef31_methods, cfg.PREMISE_GWP_METHOD, *cfg.CED_METHODS]
+    # EF-only subsets are still useful for the relative spider table; method
+    # membership itself is controlled exclusively by LCIA_mapping_h2.py.
+    ef31_methods = [method for method in lcia_methods if method[0] == "EF v3.1"]
     rows = []
     for method in lcia_methods:
         metadata = bd.Method(method).metadata
@@ -429,7 +422,7 @@ def calculate_lcia(selected, market_order, lcia_methods, method_units):
                     "score per kg H2": float(lca.score),
                 }
             )
-            if method == cfg.PREMISE_GWP_METHOD:
+            if method in h2map.CONTRIBUTION_METHODS:
                 contribution_records.extend(
                     _top_process_rows(
                         lca,
@@ -453,7 +446,7 @@ def calculate_lcia(selected, market_order, lcia_methods, method_units):
         .rename(columns={"score": "reconstructed score"})
     )
     check = scores_df[
-        scores_df["method"].isin([cfg.PREMISE_GWP_METHOD])
+        scores_df["method"].isin(h2map.CONTRIBUTION_METHODS)
     ].merge(reconstructed, on=["market", "method"], validate="one_to_one")
     differences = (
         check["score per kg H2"] - check["reconstructed score"]
@@ -513,7 +506,7 @@ def analyze_hydrogen_life_cycle_stages(
                 row["score"]
                 for row in direct_rows
                 if row["contribution type"]
-                in {"Hydrogen leakage", "Ammonia leakage"}
+                in LEAKAGE_CONTRIBUTION_TYPES
             )
             audit_rows.append(
                 {
@@ -587,7 +580,7 @@ def analyze_hydrogen_life_cycle_stages(
                             market_total,
                         )
                     )
-                for leakage_type in ("Hydrogen leakage", "Ammonia leakage"):
+                for leakage_type in LEAKAGE_CONTRIBUTION_TYPES:
                     leakage_rows = [
                         row
                         for row in direct_rows
@@ -673,7 +666,7 @@ def analyze_hydrogen_life_cycle_stages(
                             "classification rule": "pipeline compression input",
                         }
                     )
-                for leakage_type in ("Hydrogen leakage", "Ammonia leakage"):
+                for leakage_type in LEAKAGE_CONTRIBUTION_TYPES:
                     leakage = [
                         row
                         for row in direct_rows
@@ -706,15 +699,11 @@ def analyze_hydrogen_life_cycle_stages(
         for item in market_biosphere:
             flow = item["exchange"].input
             flow_name = str(flow.get("name", ""))
-            if flow_name.lower() not in {"hydrogen", "ammonia"}:
+            if flow_name.lower() not in DIRECT_EMISSION_TYPES:
                 raise ValueError(
                     f"Unclassified direct market emission {flow_name!r} in {market_label}."
                 )
-            leakage_type = (
-                "Hydrogen leakage"
-                if flow_name.lower() == "hydrogen"
-                else "Ammonia leakage"
-            )
+            leakage_type = DIRECT_EMISSION_TYPES[flow_name.lower()]
             leakage_score = item["scaled amount"] * cf_lookup.get(
                 int(flow.id), 0.0
             )
@@ -890,9 +879,9 @@ def _spider_ratios(scores_df, ef31_methods, market_order):
 def _hotspot_tables(
     selected, market_order, ef31_methods, scores_df, method_units
 ):
-    candidates = [*ef31_methods, cfg.PREMISE_GWP_METHOD]
+    candidates = list(h2map.SELECTED_METHODS)
     methods_by_category = {}
-    for category in cfg.SPECIFIC_IMPACT_CATEGORY_ORDER:
+    for category in h2map.SPECIFIC_IMPACT_CATEGORY_ORDER:
         matches = [
             method
             for method in candidates
@@ -948,7 +937,7 @@ def _hotspot_tables(
     )
     groups["impact category"] = pd.Categorical(
         groups["impact category"],
-        categories=cfg.SPECIFIC_IMPACT_CATEGORY_ORDER,
+        categories=h2map.SPECIFIC_IMPACT_CATEGORY_ORDER,
         ordered=True,
     )
     groups = groups.sort_values(
@@ -999,7 +988,7 @@ def _regional_steel_analysis(database, method_units):
     records = []
     for region, activity in selected.items():
         lca = bc.LCA(
-            {activity: cfg.FUNCTIONAL_UNIT_KG}, cfg.PREMISE_GWP_METHOD
+            {activity: cfg.FUNCTIONAL_UNIT_KG}, h2map.PREMISE_GWP_METHOD
         )
         lca.lci()
         lca.lcia()
@@ -1009,11 +998,11 @@ def _regional_steel_analysis(database, method_units):
                 "market name": activity.get("name"),
                 "location": activity.get("location"),
                 "impact category": impact_category_label(
-                    cfg.PREMISE_GWP_METHOD
+                    h2map.PREMISE_GWP_METHOD
                 ),
-                "indicator": cfg.PREMISE_GWP_METHOD[-1],
-                "method": cfg.PREMISE_GWP_METHOD,
-                "unit": method_units[cfg.PREMISE_GWP_METHOD],
+                "indicator": h2map.PREMISE_GWP_METHOD[-1],
+                "method": h2map.PREMISE_GWP_METHOD,
+                "unit": method_units[h2map.PREMISE_GWP_METHOD],
                 "score per kg H2": float(lca.score),
             }
         )
@@ -1021,10 +1010,10 @@ def _regional_steel_analysis(database, method_units):
     stage = analyze_hydrogen_life_cycle_stages(
         selected,
         order,
-        cfg.PREMISE_GWP_METHOD,
+        h2map.PREMISE_GWP_METHOD,
         scores,
-        impact_category_label(cfg.PREMISE_GWP_METHOD),
-        method_units[cfg.PREMISE_GWP_METHOD],
+        impact_category_label(h2map.PREMISE_GWP_METHOD),
+        method_units[h2map.PREMISE_GWP_METHOD],
     )
     return selected, order, selection, scores, stage
 
@@ -1058,9 +1047,10 @@ def run_analysis(
     """Run the complete LCIA workflow for one prospective database."""
     bd.projects.set_current(project)
     add_premise_gwp()
-    if cfg.PREMISE_GWP_METHOD not in bd.methods:
+    if h2map.PREMISE_GWP_METHOD not in bd.methods:
         raise LookupError(
-            f"premise_gwp did not install the expected method: {cfg.PREMISE_GWP_METHOD}"
+            "premise_gwp did not install the expected method: "
+            f"{h2map.PREMISE_GWP_METHOD}"
         )
     if database_name not in bd.databases:
         available = "\n".join(f"  - {name}" for name in bd.databases)
@@ -1083,10 +1073,10 @@ def run_analysis(
     stage = analyze_hydrogen_life_cycle_stages(
         selected,
         market_order,
-        cfg.PREMISE_GWP_METHOD,
+        h2map.PREMISE_GWP_METHOD,
         scores_df,
-        impact_category_label(cfg.PREMISE_GWP_METHOD),
-        method_units[cfg.PREMISE_GWP_METHOD],
+        impact_category_label(h2map.PREMISE_GWP_METHOD),
+        method_units[h2map.PREMISE_GWP_METHOD],
     )
     tables = {
         "selection": selection_df,
