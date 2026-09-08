@@ -34,8 +34,12 @@ falling back silently. The liquefied-hydrogen tanker is intentionally outside
 the current LCIA mapping scope.
 
 Production technologies use shades from the canonical `Greys` family. Route
-families retain separate sequential palettes and hatches so production and
-distribution contributions remain distinguishable.
+families retain separate sequential palettes. Contribution charts also consume
+`PROCESS_HATCH`: production is unhatched, distribution/conversion/reconversion
+use their configured patterns, and direct hydrogen leakage explicitly uses the
+existing `PROCESS_HATCH["Hydrogen leakage"]` pattern. This makes hydrogen
+leakage distinguishable in both the hotspot and stage-analysis charts; no new
+ammonia-leakage hatch is introduced.
 
 After changing mappings or methods, restart the notebook kernel or reload the
 module, rerun the calculation cells, and inspect the selection,
