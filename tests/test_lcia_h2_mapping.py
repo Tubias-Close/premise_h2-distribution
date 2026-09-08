@@ -56,6 +56,11 @@ def test_scope_and_canonical_display_names_are_preserved():
     assert MAPPING.FAMILY_STYLES["Hydrogen production"]["cmap"] == "Greys"
 
 
+def test_only_hydrogen_leakage_has_a_canonical_leakage_hatch():
+    assert MAPPING.PROCESS_HATCH["Hydrogen leakage"] == "ooo"
+    assert "Ammonia leakage" not in MAPPING.PROCESS_HATCH
+
+
 def test_all_method_selection_comes_from_method_labels_without_ced():
     assert MAPPING.SELECTED_METHODS == tuple(MAPPING.METHOD_LABELS)
     assert MAPPING.CONTRIBUTION_METHODS == (MAPPING.PREMISE_GWP_METHOD,)

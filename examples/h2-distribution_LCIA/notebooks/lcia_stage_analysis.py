@@ -1,8 +1,8 @@
 """Life-cycle-stage contribution helpers for the European hydrogen-market notebook."""
 
+import sys
 from collections import defaultdict
 from pathlib import Path
-import sys
 
 import bw2calc as bc
 import bw2data as bd
@@ -16,21 +16,26 @@ ANALYSIS_DIR = Path(__file__).resolve().parent.parent
 if str(ANALYSIS_DIR) not in sys.path:
     sys.path.insert(0, str(ANALYSIS_DIR))
 
-from LCIA_mapping_h2 import (  # noqa: E402
+from LCIA_mapping_h2 import (
     CONVERSION_NAMES,
     DIRECT_EMISSION_TYPES,
     FAMILY_STYLES,
     LEAKAGE_COLORS,
     LEAKAGE_CONTRIBUTION_TYPES,
     PIPELINE_TRANSPORT_ACTIVITY_NAME,
+    PROCESS_HATCH,
     PRODUCTION_FAMILY,
     SHARED_DISTRIBUTION_FAMILY,
-    classify_market_branch as _classify_market_branch,
-    classify_production_input as _classify_production_input,
-    distribution_family,
-    is_hydrogen_market as _is_hydrogen_market,
-    normalized as _normalized,
 )
+from LCIA_mapping_h2 import (
+    classify_market_branch as _classify_market_branch,
+)  # noqa: E402
+from LCIA_mapping_h2 import (
+    classify_production_input as _classify_production_input,
+)
+from LCIA_mapping_h2 import distribution_family
+from LCIA_mapping_h2 import is_hydrogen_market as _is_hydrogen_market
+from LCIA_mapping_h2 import normalized as _normalized
 
 
 def _reference_output_amount(activity):
@@ -96,10 +101,7 @@ def _collect_market_branches(activity, demand_amount, path=(), visited=()):
 
 def _pipeline_conversion_inputs(activity, demand_amount):
     """Return inputs that provide compression within pipeline distribution."""
-    if (
-        _normalized(activity.get("name"))
-        != PIPELINE_TRANSPORT_ACTIVITY_NAME
-    ):
+    if _normalized(activity.get("name")) != PIPELINE_TRANSPORT_ACTIVITY_NAME:
         return []
 
     scale = demand_amount / _reference_output_amount(activity)
@@ -235,6 +237,54 @@ def distribution_process_color_map(processes):
     return _color_map_by_family(processes, _distribution_color_family)
 
 
+def stage_layer1_hatch_map(layer1_df):
+    """Map Layer-1 components to PROCESS_HATCH, including H2 leakage."""
+    styles = (
+        layer1_df[["component", "layer 1 group", "contribution type"]]
+        .drop_duplicates()
+        .set_index("component")
+        .to_dict("index")
+    )
+    return {
+        component: PROCESS_HATCH[
+            (
+                "Hydrogen leakage"
+                if row["contribution type"] == "Hydrogen leakage"
+                else (
+                    "Production"
+                    if row["layer 1 group"] == "Production technology"
+                    else "Distribution"
+                )
+            )
+        ]
+        for component, row in styles.items()
+    }
+
+
+def distribution_process_hatch_map(distribution_df):
+    """Map first-tier processes to PROCESS_HATCH, including H2 leakage."""
+    styles = (
+        distribution_df[["process", "substage", "contribution type"]]
+        .drop_duplicates()
+        .set_index("process")
+        .to_dict("index")
+    )
+    return {
+        process: PROCESS_HATCH[
+            (
+                "Hydrogen leakage"
+                if row["contribution type"] == "Hydrogen leakage"
+                else (
+                    row["substage"]
+                    if row["substage"] in PROCESS_HATCH
+                    else "Distribution"
+                )
+            )
+        ]
+        for process, row in styles.items()
+    }
+
+
 def analyze_hydrogen_life_cycle_stages(
     selected,
     market_order,
@@ -289,8 +339,7 @@ def analyze_hydrogen_life_cycle_stages(
             leakage_score = sum(
                 row["score"]
                 for row in direct_rows
-                if row["contribution type"]
-                in LEAKAGE_CONTRIBUTION_TYPES
+                if row["contribution type"] in LEAKAGE_CONTRIBUTION_TYPES
             )
 
             audit_rows.append(
@@ -630,6 +679,7 @@ def _plot_signed_stacks(
     color_map,
     value_column,
     xlabel,
+    hatch_map=None,
     label_threshold=None,
     value_format="{:.2e}",
 ):
@@ -656,6 +706,7 @@ def _plot_signed_stacks(
             values,
             left=left,
             color=color_map[component],
+            hatch=(hatch_map or {}).get(component, ""),
             edgecolor="white",
             linewidth=0.6,
             label=component,
@@ -680,6 +731,7 @@ def _plot_signed_stacks(
 
 def plot_stage_layer1(layer1_df, market_order, label_threshold=3.0):
     colors = stage_layer1_color_map(layer1_df)
+    hatches = stage_layer1_hatch_map(layer1_df)
 
     fig, ax = plt.subplots(figsize=(16, max(6, 0.75 * len(market_order) + 2)))
     _plot_signed_stacks(
@@ -689,12 +741,13 @@ def plot_stage_layer1(layer1_df, market_order, label_threshold=3.0):
         "component",
         colors,
         value_column="share of market (%)",
-        xlabel="Contribution to total premise-GWP score (%)",
+        xlabel="Contribution to total GWP100 score (%)",
+        hatch_map=hatches,
         label_threshold=label_threshold,
         value_format="{:.1f}%",
     )
     ax.set_title(
-        "Process group CA - hydrogen production technologies and aggregated distribution"
+        "Process group Contribution Analysis - hydrogen production technologies and distribution"
     )
     ax.legend(
         title="Layer 1 component",
@@ -720,6 +773,13 @@ def plot_production_layer2(
         group: palette(i % palette.N) for i, group in enumerate(input_groups)
     }
     colors.update(LEAKAGE_COLORS)
+    # Link only direct H2 leakage to its existing canonical hatch.
+    hatches = {
+        group: PROCESS_HATCH[
+            "Hydrogen leakage" if group == "Hydrogen leakage" else "Production"
+        ]
+        for group in input_groups
+    }
 
     fig, axes = plt.subplots(
         len(technologies),
@@ -743,6 +803,7 @@ def plot_production_layer2(
             colors,
             value_column="score",
             xlabel=f"Absolute contribution ({unit} / kg H2)",
+            hatch_map=hatches,
             label_threshold=label_threshold,
         )
         ax.set_title(technology, loc="left")
@@ -770,6 +831,7 @@ def plot_distribution_layer2(
 ):
     processes = distribution_df["process"].drop_duplicates().tolist()
     colors = distribution_process_color_map(processes)
+    hatches = distribution_process_hatch_map(distribution_df)
 
     fig, ax = plt.subplots(figsize=(10, max(6, 0.75 * len(market_order) + 2)))
     unit = distribution_df["unit"].iloc[0]
@@ -781,6 +843,7 @@ def plot_distribution_layer2(
         colors,
         value_column="score",
         xlabel=f"Absolute contribution ({unit} / kg H2)",
+        hatch_map=hatches,
         label_threshold=label_threshold,
     )
     handles = {}
