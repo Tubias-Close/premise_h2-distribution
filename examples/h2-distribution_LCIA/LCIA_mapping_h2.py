@@ -387,10 +387,15 @@ def classify_production_input(provider):
     return "Other raw materials"
 
 
+def method_plot_label(method):
+    """Render the canonical method label with a font-independent H2 subscript."""
+    return METHOD_LABELS[method].replace("H₂", r"H$_2$")
+
+
 def impact_category_label(method):
     """Return the stable analytical label used in tables and reconciliation."""
     if method == PREMISE_GWP_METHOD:
-        return "climate change — GWP 100a, incl. H (premise_gwp)"
+        return "climate change — GWP 100a, incl. H2"
     return method[1]
 
 

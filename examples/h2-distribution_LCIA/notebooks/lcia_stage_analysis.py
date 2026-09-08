@@ -20,6 +20,7 @@ from LCIA_mapping_h2 import (
     CONVERSION_NAMES,
     DIRECT_EMISSION_TYPES,
     FAMILY_STYLES,
+    method_plot_label,
     LEAKAGE_COLORS,
     LEAKAGE_CONTRIBUTION_TYPES,
     PIPELINE_TRANSPORT_ACTIVITY_NAME,
@@ -729,7 +730,13 @@ def _plot_signed_stacks(
     ax.set_xlabel(xlabel)
 
 
-def plot_stage_layer1(layer1_df, market_order, label_threshold=3.0):
+def _stage_plot_title(title_context, title):
+    """Include scenario metadata when supplied by the calling notebook."""
+    return f"{title}\n{title_context}" if title_context else title
+
+
+def plot_stage_layer1(layer1_df, market_order, label_threshold=3.0, *, title_context=""):
+    method_label = method_plot_label(tuple(layer1_df["method"].iloc[0]))
     colors = stage_layer1_color_map(layer1_df)
     hatches = stage_layer1_hatch_map(layer1_df)
 
@@ -741,13 +748,13 @@ def plot_stage_layer1(layer1_df, market_order, label_threshold=3.0):
         "component",
         colors,
         value_column="share of market (%)",
-        xlabel="Contribution to total GWP100 score (%)",
+        xlabel=f"Contribution to total {method_label} score (%)",
         hatch_map=hatches,
         label_threshold=label_threshold,
         value_format="{:.1f}%",
     )
     ax.set_title(
-        "Process group Contribution Analysis - hydrogen production technologies and distribution"
+        _stage_plot_title(title_context, "Process group Contribution Analysis - hydrogen production technologies and distribution")
     )
     ax.legend(
         title="Layer 1 component",
@@ -760,8 +767,9 @@ def plot_stage_layer1(layer1_df, market_order, label_threshold=3.0):
 
 
 def plot_production_layer2(
-    production_groups_df, market_order, label_threshold=None
+    production_groups_df, market_order, label_threshold=None, *, title_context=""
 ):
+    method_label = method_plot_label(tuple(production_groups_df["method"].iloc[0]))
     technologies = (
         production_groups_df["technology"].drop_duplicates().tolist()
     )
@@ -802,11 +810,11 @@ def plot_production_layer2(
             "input group",
             colors,
             value_column="score",
-            xlabel=f"Absolute contribution ({unit} / kg H2)",
+            xlabel=f"{method_label} contribution ({unit} / kg H2)",
             hatch_map=hatches,
             label_threshold=label_threshold,
         )
-        ax.set_title(technology, loc="left")
+        ax.set_title(_stage_plot_title(title_context, technology), loc="left")
     handles = {}
     for ax in axes.ravel():
         for handle, label in zip(*ax.get_legend_handles_labels()):
@@ -820,15 +828,16 @@ def plot_production_layer2(
         frameon=False,
     )
     fig.suptitle(
-        "Layer 2 — main inputs to each hydrogen production technology", y=1.002
+        _stage_plot_title(title_context, "Layer 2 — main inputs to each hydrogen production technology"), y=1.002
     )
     fig.tight_layout(rect=(0, 0, 0.84, 1))
     plt.show()
 
 
 def plot_distribution_layer2(
-    distribution_df, market_order, label_threshold=None
+    distribution_df, market_order, label_threshold=None, *, title_context=""
 ):
+    method_label = method_plot_label(tuple(distribution_df["method"].iloc[0]))
     processes = distribution_df["process"].drop_duplicates().tolist()
     colors = distribution_process_color_map(processes)
     hatches = distribution_process_hatch_map(distribution_df)
@@ -842,7 +851,7 @@ def plot_distribution_layer2(
         "process",
         colors,
         value_column="score",
-        xlabel=f"Absolute contribution ({unit} / kg H2)",
+        xlabel=f"{method_label} contribution ({unit} / kg H2)",
         hatch_map=hatches,
         label_threshold=label_threshold,
     )
@@ -858,7 +867,7 @@ def plot_distribution_layer2(
         frameon=False,
     )
     fig.suptitle(
-        "Process group CA - transport, conversion, and reconversion by market",
+        _stage_plot_title(title_context, "Process group CA - transport, conversion, and reconversion by market"),
         y=1.01,
     )
     fig.tight_layout(rect=(0, 0, 0.82, 1))
