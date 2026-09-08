@@ -12,6 +12,7 @@ exact keys by the contribution-analysis plotting helpers.
 # Brightway databases included in the multi-IAM comparison. Keeping the IAM
 # metadata beside each database makes the exported scenario audit reproducible.
 DATABASES = [
+    # REMIND SSP1 PkBudg650
     {
         "database": "ecoinvent-3.12-cutoff_remind-SSP1-PkBudg650_2030_08_full",
         "iam_model": "remind",
@@ -30,6 +31,7 @@ DATABASES = [
         "scenario": "SSP1-PkBudg650",
         "year": 2050,
     },
+    # REMIND SSP2 PkBudg1000
     {
         "database": "ecoinvent-3.12-cutoff_remind-SSP2-PkBudg1000_2030_08_full",
         "iam_model": "remind",
@@ -48,6 +50,26 @@ DATABASES = [
         "scenario": "SSP2-PkBudg1000",
         "year": 2050,
     },
+    # IMAGE SSP1 VLLO
+    {
+        "database": "ecoinvent-3.12-cutoff_image-SSP1-VLLO_2030_08_full",
+        "iam_model": "image",
+        "scenario": "SSP1-VLLO",
+        "year": 2030,
+    },
+    {
+        "database": "ecoinvent-3.12-cutoff_image-SSP1-VLLO_2040_08_full",
+        "iam_model": "image",
+        "scenario": "SSP1-VLLO",
+        "year": 2040,
+    },
+    {
+        "database": "ecoinvent-3.12-cutoff_image-SSP1-VLLO_2050_08_full",
+        "iam_model": "image",
+        "scenario": "SSP1-VLLO",
+        "year": 2050,
+    },
+    # IMAGE SSP2 VLHO
     {
         "database": "ecoinvent-3.12-cutoff_image-SSP2-VLHO_2030_08_full",
         "iam_model": "image",
@@ -66,6 +88,26 @@ DATABASES = [
         "scenario": "SSP2-VLHO",
         "year": 2050,
     },
+    # MESSAGE SSP1-VL
+    {
+        "database": "ecoinvent-3.12-cutoff_message-SSP1-VL_2030_08_full",
+        "iam_model": "message",
+        "scenario": "SSP1-VL",
+        "year": 2030,
+    },
+    {
+        "database": "ecoinvent-3.12-cutoff_message-SSP1-VL_2040_08_full",
+        "iam_model": "message",
+        "scenario": "SSP1-VL",
+        "year": 2040,
+    },
+    {
+        "database": "ecoinvent-3.12-cutoff_message-SSP1-VL_2050_08_full",
+        "iam_model": "message",
+        "scenario": "SSP1-VL",
+        "year": 2050,
+    },
+    # MESSAGE SSP2-VL
     {
         "database": "ecoinvent-3.12-cutoff_message-SSP2-L_2030_08_full",
         "iam_model": "message",
@@ -94,13 +136,17 @@ MODEL_LABELS = {
 SCENARIO_LABELS = {
     ("remind", "SSP1-PkBudg650"): "REMIND - SSP1-PkBudg650",
     ("remind", "SSP2-PkBudg1000"): "REMIND - SSP2-PkBudg1000",
+    ("image", "SSP1-VLLO"): "IMAGE - SSP1-VLLO",
     ("image", "SSP2-VLHO"): "IMAGE - SSP2-VLHO",
+    ("message", "SSP1-VL"): "MESSAGE - SSP1-VL",
     ("message", "SSP2-L"): "MESSAGE - SSP2-L",
 }
 WARMING_MAP = {
     ("remind", "SSP1-PkBudg650"): "<1.5 °C",
     ("remind", "SSP2-PkBudg1000"): "<2.0 °C",
+    ("image", "SSP1-VLLO"): "<1.5 °C",
     ("image", "SSP2-VLHO"): "<2.0 °C",
+    ("message", "SSP1-VL"): "<1.5 °C",
     ("message", "SSP2-L"): "<2.0 °C",
 }
 
@@ -227,8 +273,24 @@ DISTRIBUTION_FAMILY_RULES = {
     ),
 }
 
-# Production technologies deliberately use grey tones so distribution routes
-# remain visually prominent. Each route receives a distinct color family/hatch.
+# Fixed technology colors shared by all production contribution plots.
+PRODUCTION_TECHNOLOGY_COLORS = {
+    "PEM electrolysis": "#56B4E9",
+    "Alkaline electrolysis": "#56B4E9",
+    "Biomass gasification": "#009E73",
+    "Biomass gasification with CCS": "#004D40",
+    "Coal gasification": "#1B1407",
+    "Coal gasification with CCS": "#4C4C50",
+    "Steam methane reforming": "#7D809190",
+    "Steam methane reforming with CCS": "#5C6D8D",
+    "Hydrogen production from petroleum refinery": "#64316B",
+}
+# This activity currently retains its full name in contribution tables.
+PRODUCTION_TECHNOLOGY_COLORS["hydrogen production, coal gasification"] = (
+    PRODUCTION_TECHNOLOGY_COLORS["Coal gasification"]
+)
+
+# Distribution routes retain their existing color families and hatches.
 PRODUCTION_FAMILY = "Hydrogen production"
 SHARED_DISTRIBUTION_FAMILY = "Shared distribution"
 FAMILY_STYLES = {
@@ -309,6 +371,8 @@ def short_production_name(name):
         return "Steam methane reforming with CCS"
     if "steam methane reforming" in text:
         return "Steam methane reforming"
+    if "hydrogen production, gaseous, petroleum refinery operation" in text:
+        return "Hydrogen production from petroleum refinery"
     return name
 
 
@@ -372,7 +436,13 @@ def classify_production_input(provider):
         return "Biomass feedstock"
     if any(
         term in text
-        for term in ("natural gas", "hard coal", "lignite", "petroleum", "coke")
+        for term in (
+            "natural gas",
+            "hard coal",
+            "lignite",
+            "petroleum",
+            "coke",
+        )
     ):
         return "Fossil feedstock"
     if name.startswith("transport") or "transport," in product:
@@ -381,7 +451,13 @@ def classify_production_input(provider):
         return "Waste treatment"
     if unit in {"unit", "kilometer"} or any(
         term in text
-        for term in ("construction", "factory", "plant", "electrolyzer", "pipeline")
+        for term in (
+            "construction",
+            "factory",
+            "plant",
+            "electrolyzer",
+            "pipeline",
+        )
     ):
         return "Infrastructure"
     return "Other raw materials"

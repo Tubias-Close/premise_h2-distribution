@@ -1,6 +1,7 @@
 """Life-cycle-stage contribution helpers for the European hydrogen-market notebook."""
 
 import sys
+import textwrap
 from collections import defaultdict
 from pathlib import Path
 
@@ -25,7 +26,7 @@ from LCIA_mapping_h2 import (
     LEAKAGE_CONTRIBUTION_TYPES,
     PIPELINE_TRANSPORT_ACTIVITY_NAME,
     PROCESS_HATCH,
-    PRODUCTION_FAMILY,
+    PRODUCTION_TECHNOLOGY_COLORS,
     SHARED_DISTRIBUTION_FAMILY,
 )
 from LCIA_mapping_h2 import (
@@ -203,7 +204,7 @@ def _color_map_by_family(items, family_by_item):
         if not family_items:
             continue
         # Avoid the almost-white ends of sequential maps so every bar remains
-        # readable. Production uses the canonical Greys family.
+        # readable.
         low, high = (0.38, 0.82)
         positions = np.linspace(low, high, len(family_items))
         cmap = plt.get_cmap(style["cmap"])
@@ -217,7 +218,7 @@ def _color_map_by_family(items, family_by_item):
 
 
 def stage_layer1_color_map(layer1_df):
-    """Use greys for production technologies and route colors for distribution."""
+    """Use fixed technology colors and route colors for distribution."""
     component_groups = (
         layer1_df[["component", "layer 1 group"]]
         .drop_duplicates()
@@ -225,12 +226,20 @@ def stage_layer1_color_map(layer1_df):
         .to_dict()
     )
 
-    def family(component):
-        if component_groups[component] == "Production technology":
-            return PRODUCTION_FAMILY
-        return _distribution_color_family(component)
-
-    return _color_map_by_family(component_groups, family)
+    production = [
+        component for component, group in component_groups.items()
+        if group == "Production technology"
+    ]
+    missing = sorted(set(production) - PRODUCTION_TECHNOLOGY_COLORS.keys())
+    if missing:
+        raise ValueError(
+            "Add production technology colors to "
+            f"LCIA_mapping_h2.PRODUCTION_TECHNOLOGY_COLORS: {missing}"
+        )
+    distribution = [item for item in component_groups if item not in production]
+    colors = _color_map_by_family(distribution, _distribution_color_family)
+    colors.update({item: PRODUCTION_TECHNOLOGY_COLORS[item] for item in production})
+    return colors
 
 
 def distribution_process_color_map(processes):
@@ -683,6 +692,8 @@ def _plot_signed_stacks(
     hatch_map=None,
     label_threshold=None,
     value_format="{:.2e}",
+    show_values=True,
+    value_fontsize=8,
 ):
     y = np.arange(len(markets))
     positive_left = np.zeros(len(markets))
@@ -713,14 +724,14 @@ def _plot_signed_stacks(
             label=component,
         )
         for bar, value, start in zip(bars, values, left):
-            if abs(value) >= threshold:
+            if show_values and abs(value) >= threshold:
                 ax.text(
                     start + value / 2,
                     bar.get_y() + bar.get_height() / 2,
                     value_format.format(value),
                     ha="center",
                     va="center",
-                    fontsize=8,
+                    fontsize=value_fontsize,
                 )
         positive_left += np.where(values >= 0, values, 0.0)
         negative_left += np.where(values < 0, values, 0.0)
@@ -735,12 +746,37 @@ def _stage_plot_title(title_context, title):
     return f"{title}\n{title_context}" if title_context else title
 
 
+def _presentation_stage_layout(fig, ax, title, title_context, legend_title):
+    """Keep the chart, wrapped legend, and headings inside a 16:9 slide."""
+    ax.tick_params(axis="both", labelsize=16)
+    ax.xaxis.label.set_size(16)
+    ax.xaxis.labelpad = 14
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.grid(axis="y", visible=False)
+    ax.set_axisbelow(True)
+    handles, labels = ax.get_legend_handles_labels()
+    labels = [textwrap.fill(label, width=36, break_long_words=False,
+                           break_on_hyphens=False) for label in labels]
+    fig.legend(handles, labels, title=legend_title,
+               bbox_to_anchor=(0.67, 0.51), loc="center left",
+               frameon=False, fontsize=14, title_fontsize=16,
+               labelspacing=0.65, handlelength=2.0)
+    fig.suptitle(_stage_plot_title(title_context, title),
+                 fontsize=22, y=0.97, linespacing=1.35)
+    fig.subplots_adjust(left=0.075, right=0.65, bottom=0.16, top=0.83)
+    # Set the family on all text, including ticks, bar values, and legend entries.
+    from matplotlib.text import Text
+    for text in fig.findobj(match=Text):
+        text.set_fontfamily("DejaVu Sans")
+
+
+
 def plot_stage_layer1(layer1_df, market_order, label_threshold=3.0, *, title_context=""):
     method_label = method_plot_label(tuple(layer1_df["method"].iloc[0]))
     colors = stage_layer1_color_map(layer1_df)
     hatches = stage_layer1_hatch_map(layer1_df)
 
-    fig, ax = plt.subplots(figsize=(16, max(6, 0.75 * len(market_order) + 2)))
+    fig, ax = plt.subplots(figsize=(16, 9), dpi=150)
     _plot_signed_stacks(
         ax,
         layer1_df,
@@ -752,17 +788,12 @@ def plot_stage_layer1(layer1_df, market_order, label_threshold=3.0, *, title_con
         hatch_map=hatches,
         label_threshold=label_threshold,
         value_format="{:.1f}%",
+        value_fontsize=12,
     )
-    ax.set_title(
-        _stage_plot_title(title_context, "Process group Contribution Analysis - hydrogen production technologies and distribution")
+    _presentation_stage_layout(
+        fig, ax, "Hydrogen production technologies and distribution",
+        title_context, "Layer 1 component",
     )
-    ax.legend(
-        title="Layer 1 component",
-        bbox_to_anchor=(1.01, 1),
-        loc="upper left",
-        frameon=False,
-    )
-    fig.tight_layout()
     plt.show()
 
 
@@ -842,7 +873,7 @@ def plot_distribution_layer2(
     colors = distribution_process_color_map(processes)
     hatches = distribution_process_hatch_map(distribution_df)
 
-    fig, ax = plt.subplots(figsize=(10, max(6, 0.75 * len(market_order) + 2)))
+    fig, ax = plt.subplots(figsize=(16, 9), dpi=150)
     unit = distribution_df["unit"].iloc[0]
     _plot_signed_stacks(
         ax,
@@ -854,21 +885,10 @@ def plot_distribution_layer2(
         xlabel=f"{method_label} contribution ({unit} / kg H2)",
         hatch_map=hatches,
         label_threshold=label_threshold,
+        show_values=False,
     )
-    handles = {}
-    for handle, label in zip(*ax.get_legend_handles_labels()):
-        handles.setdefault(label, handle)
-    fig.legend(
-        handles.values(),
-        handles.keys(),
-        title="Distribution process",
-        bbox_to_anchor=(1.01, 0.5),
-        loc="center left",
-        frameon=False,
+    _presentation_stage_layout(
+        fig, ax, "Transport, conversion, and reconversion by market",
+        title_context, "Distribution process",
     )
-    fig.suptitle(
-        _stage_plot_title(title_context, "Process group CA - transport, conversion, and reconversion by market"),
-        y=1.01,
-    )
-    fig.tight_layout(rect=(0, 0, 0.82, 1))
     plt.show()
