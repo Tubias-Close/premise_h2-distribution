@@ -67,3 +67,6 @@ tests/*.env
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+private_keys.py
+dev/private_key.py

@@ -47,6 +47,81 @@ def _technosphere_exchange(name, product, amount, unit="kilogram"):
     }
 
 
+def _transport_exchange(name, location):
+    return {
+        "name": name,
+        "product": name,
+        "location": location,
+        "amount": 0.5,
+        "unit": "ton kilometer",
+        "type": "technosphere",
+    }
+
+
+def test_emptied_transport_aggregation_allows_same_supplier_name_by_region():
+    supplier = "transport, hydrogen, gaseous, lorry, unspecified"
+    activity = {
+        "name": supplier,
+        "reference product": supplier,
+        "location": "GLO",
+        "unit": "ton kilometer",
+        "emptied": True,
+        "exchanges": [
+            _transport_exchange(supplier, "EUR"),
+            _transport_exchange(supplier, "USA"),
+        ],
+    }
+    validator = _transport_validator([activity])
+
+    validator.check_vehicles()
+
+    assert validator.major_issues_log == []
+
+
+def test_emptied_transport_aggregation_reports_duplicate_supplier_identity():
+    supplier = "transport, hydrogen, gaseous, lorry, unspecified"
+    duplicate = _transport_exchange(supplier, "EUR")
+    activity = {
+        "name": supplier,
+        "reference product": supplier,
+        "location": "GLO",
+        "unit": "ton kilometer",
+        "emptied": True,
+        "exchanges": [duplicate, duplicate.copy()],
+    }
+    validator = _transport_validator([activity])
+
+    validator.check_vehicles()
+
+    assert len(validator.major_issues_log) == 1
+    assert validator.major_issues_log[0]["reason"] == (
+        "duplicate transport exchanges"
+    )
+
+
+def test_non_emptied_transport_market_still_requires_unique_supplier_names():
+    activity_name = "transport, freight, lorry, unspecified"
+    supplier = "transport, freight, lorry, diesel, EURO 6"
+    activity = {
+        "name": activity_name,
+        "reference product": activity_name,
+        "location": "GLO",
+        "unit": "ton kilometer",
+        "exchanges": [
+            _transport_exchange(supplier, "RER"),
+            _transport_exchange(supplier, "RoW"),
+        ],
+    }
+    validator = _transport_validator([activity])
+
+    validator.check_vehicles()
+
+    assert len(validator.major_issues_log) == 1
+    assert validator.major_issues_log[0]["reason"] == (
+        "duplicate transport exchanges"
+    )
+
+
 def _fuel_market(name, reference_product, exchanges, unit="kilogram"):
     return {
         "name": name,
