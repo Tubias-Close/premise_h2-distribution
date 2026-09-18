@@ -132,6 +132,59 @@ def _fuel_market(name, reference_product, exchanges, unit="kilogram"):
     }
 
 
+def _hydrogen_truck_transport(exchanges):
+    name = "transport, hydrogen, gaseous, lorry, unspecified"
+    return {
+        "name": name,
+        "reference product": name,
+        "location": "GLO",
+        "unit": "ton kilometer",
+        "exchanges": exchanges,
+    }
+
+
+def test_transport_duplicate_check_accepts_same_supplier_name_in_distinct_locations():
+    supplier_name = "transport, hydrogen, gaseous, lorry, unspecified"
+    exchanges = [
+        {
+            **_technosphere_exchange(
+                supplier_name,
+                supplier_name,
+                0.5,
+                unit="ton kilometer",
+            ),
+            "location": location,
+        }
+        for location in ("EUR", "USA")
+    ]
+    validator = _transport_validator([_hydrogen_truck_transport(exchanges)])
+
+    validator.check_vehicles()
+
+    assert validator.major_issues_log == []
+
+
+def test_transport_duplicate_check_reports_repeated_supplier_identity():
+    supplier_name = "transport, hydrogen, gaseous, lorry, unspecified"
+    exchange = {
+        **_technosphere_exchange(
+            supplier_name,
+            supplier_name,
+            0.5,
+            unit="ton kilometer",
+        ),
+        "location": "EUR",
+    }
+    validator = _transport_validator(
+        [_hydrogen_truck_transport([exchange, exchange.copy()])]
+    )
+
+    validator.check_vehicles()
+
+    assert len(validator.major_issues_log) == 1
+    assert validator.major_issues_log[0]["reason"] == "duplicate transport exchanges"
+
+
 def test_check_new_location_accepts_extra_superstructure_regions():
     validator = _validator_for_locations(
         database_locations=["JAP"],
