@@ -18,8 +18,8 @@ Use this evidence order when sources disagree:
 
 1. Current executable source and tests.
 2. Runtime YAML and packaged inventories.
-3. Version-matched H2 sections in `docs/transform.rst`, `docs/extract.rst`, and
-   `docs/fuel_market_system_models.rst`.
+3. Version-matched H2 sections in `docs/methodology/fuels/hydrogen.rst`,
+   `docs/reference/inventories.rst`, and `docs/methodology/fuels/markets.rst`.
 4. Examples, changelog, and committed analysis outputs.
 
 Report documentation/source inconsistencies instead of silently choosing one.
@@ -53,9 +53,9 @@ transformation, carry state into the scenario, and validate.
 | Consumer routing | `hydrogen_consumer_routing.yaml` | relinker helpers, market-availability helpers, routing tests |
 | Sector-market exchanges | transport-share and supplier helpers in `hydrogen.py` | additional inventories, geography fallbacks, conversion constants |
 | Fuel orchestration/state | `premise/fuels/base.py` | `premise/new_database.py`, `FuelsValidation`, fail-fast tests |
-| Audit/change reports | `HYDROGEN_LOG_COLUMNS`, H2 log writers | `premise/data/utils/logging/reporting.yaml`, `premise/report.py` |
-| Inventories | H2 distribution/transport workbooks in `premise/data/additional_inventories/` | constants and source-version hooks in `new_database.py`, inventory tests, `docs/extract.rst` |
-| Public behavior | H2 sections in `docs/transform.rst` and `docs/extract.rst` | `CHANGELOG.md`, examples, tests |
+| Audit/change reports | `HYDROGEN_LOG_COLUMNS`, H2 log writers | `premise/provenance.py`, `premise/change_report.py` (`Hydrogen` sheet) |
+| Inventories | H2 distribution/transport workbooks in `premise/data/additional_inventories/` | constants and source-version hooks in `new_database.py`, inventory tests, `docs/reference/inventories.rst` |
+| Public behavior | H2 sections in `docs/methodology/fuels/hydrogen.rst` and `docs/reference/inventories.rst` | `CHANGELOG.md`, examples, tests |
 
 ## Data and Scientific Contracts
 
@@ -108,8 +108,8 @@ themselves or create duplicate/circular suppliers.
 ## Reporting and Inventory Wiring
 
 When a diagnostic field or distribution mode changes, inspect all four layers:
-the demand/relink record, `HYDROGEN_LOG_COLUMNS`, the log writer, and
-`reporting.yaml`. A test that only matches one log string does not prove the
+the demand/relink record, `HYDROGEN_LOG_COLUMNS`, the provenance writer, and
+the structured change report's `Hydrogen` sheet. A test that only captures one event does not prove the
 change-report schema remains complete.
 
 The market builder resolves imported activities from the in-memory database; it
