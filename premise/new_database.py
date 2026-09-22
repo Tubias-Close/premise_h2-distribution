@@ -2790,6 +2790,7 @@ class NewDatabase:
                 original_database=original_database,
                 biosphere_name=self.biosphere_name,
                 version=self.version,
+                is_superstructure=True,
             )
         except PremiseValidationError as error:
             self._handle_export_validation_error(

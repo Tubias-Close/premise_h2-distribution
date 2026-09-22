@@ -1612,15 +1612,23 @@ class BaseDatasetValidator:
                 f"{entry['location']}|{entry['severity']}|{entry['reason']}|{entry['message']}"
             )
 
-    def run_all_checks(self):
-        """Run a strictly read-only complete export validation pass."""
+    def run_all_checks(self, *, is_superstructure: bool = False):
+        """Validate an export inventory without changing it.
+
+        A superstructure retains baseline supplies and alternative exchanges
+        from multiple scenarios. Its constituents must already have passed
+        hydrogen-distribution checks in their own IAM contexts; those checks
+        do not describe the combined graph. All structural checks still apply,
+        including provider resolution for zero-amount alternative exchanges.
+        """
 
         self.check_datasets_integrity()
         self.check_matrix_squareness()
         self.validate_dataset_structure()
         self.verify_data_consistency()
         self.check_relinking_logic()
-        self.check_hydrogen_distribution_integrity()
+        if not is_superstructure:
+            self.check_hydrogen_distribution_integrity()
         self.check_new_location()
         self.check_for_orphaned_datasets()
         self.check_for_duplicates()

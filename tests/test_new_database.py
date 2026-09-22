@@ -643,6 +643,8 @@ def test_write_superstructure_to_brightway_uses_fast_writer_after_full_preparati
         original_database,
         biosphere_name,
         version,
+        *,
+        is_superstructure=False,
     ):
         captured["prepared_export"] = {
             "scenario": scenario.copy(),
@@ -650,6 +652,7 @@ def test_write_superstructure_to_brightway_uses_fast_writer_after_full_preparati
             "original_database": original_database,
             "biosphere_name": biosphere_name,
             "version": version,
+            "is_superstructure": is_superstructure,
         }
         return prepared_database
 
@@ -736,6 +739,7 @@ def test_write_superstructure_to_brightway_uses_fast_writer_after_full_preparati
         "original_database": original_database,
         "biosphere_name": "test-biosphere",
         "version": "3.12",
+        "is_superstructure": True,
     }
     assert captured["written"]["data"] == prepared_database
     assert captured["written"]["name"] == "super-db"

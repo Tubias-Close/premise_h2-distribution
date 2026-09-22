@@ -1226,10 +1226,19 @@ def check_geographical_linking(scenario, original_database):
 
 
 def prepare_db_for_export(
-    scenario, name, original_database, version, biosphere_name=None
+    scenario,
+    name,
+    original_database,
+    version,
+    biosphere_name=None,
+    *,
+    is_superstructure: bool = False,
 ):
     """
     Prepare a database for export.
+
+    Set ``is_superstructure`` only for a union whose constituent scenarios
+    have already been validated separately in their own IAM contexts.
     """
 
     # ensuring that all geographically appropriate exchanges are present
@@ -1251,7 +1260,10 @@ def prepare_db_for_export(
     make_normalizer = getattr(validator, "make_normalizer", None)
     if make_normalizer is not None:
         validator.database = make_normalizer().normalize_database()
-    if _has_semantic_certificate(scenario):
+    if is_superstructure:
+        # A constituent's certificate cannot certify the newly built union.
+        report = validator.run_all_checks(is_superstructure=True)
+    elif _has_semantic_certificate(scenario):
         report = validator.run_export_schema_checks()
     else:
         report = validator.run_all_checks()

@@ -324,6 +324,16 @@ as sector or node type, then evaluates its numeric ``basis``. Bounds use
 ``min_demand <= value < max_demand``. If several rules match, the lowest
 numeric priority wins.
 
+.. figure:: /_static/process-diagrams/hydrogen-distribution-decision-tree.svg
+   :alt: Hydrogen distribution decision tree: heating uses pipeline delivery; large steel plants use pipeline and ammonia shipping; remaining rows follow annual demand-per-node thresholds, with missing estimates excluded.
+   :align: center
+
+   Current default distribution rules, evaluated for each regional demand row.
+   Follow the first matching branch; demand thresholds are in tonnes of hydrogen
+   per node per year. The heating rule applies even without a node estimate.
+   Market creation additionally requires positive IAM demand and an eligible
+   final consumer.
+
 The current rules use annual hydrogen demand per node as their basis:
 
 .. list-table:: Current hydrogen-distribution rules
