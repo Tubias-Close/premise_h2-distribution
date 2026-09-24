@@ -213,10 +213,10 @@ HYDROGEN_CONVERSION_AMOUNTS_PER_KG_HYDROGEN = {
     "ammonia_cracking": KG_AMMONIA_CRACKED_PER_KG_HYDROGEN,
 }
 HYDROGEN_TRANSPORT_DISTANCES_KM = {
-    "compressed_gaseous_truck": 50,
-    "liquid_hydrogen_truck": 100,
-    "liquid_ammonia_ship": 2500,
-    "liquid_hydrogen_ship": 2500,
+    "compressed_gaseous_truck": 50,  # 10.1016/j.ijhydene.2024.06.049
+    "liquid_hydrogen_truck": 100,  # 10.1016/j.ijhydene.2024.06.049
+    "liquid_ammonia_ship": 2500,  # https://doi.org/10.1371/journal.pone.0281380
+    "liquid_hydrogen_ship": 2500,  # https://doi.org/10.1371/journal.pone.0281380
 }
 HYDROGEN_PIPELINE_GENERAL_MARKET_AMOUNT = 1
 KG_TO_TONNE = 0.001
