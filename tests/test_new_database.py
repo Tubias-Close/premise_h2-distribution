@@ -35,7 +35,12 @@ except ModuleNotFoundError:
 
 import premise.new_database as new_database_module
 import premise.pathways as pathways_module
-from premise.new_database import NewDatabase, check_presence_biosphere_database
+from premise.inventory_store import CompactInventoryStore
+from premise.new_database import (
+    NewDatabase,
+    check_pathway_name,
+    check_presence_biosphere_database,
+)
 from premise.pathways import PathwaysDataPackage
 from premise.utils import get_cache_manifest_path, warning_about_biogenic_co2
 
@@ -49,13 +54,10 @@ class DummyIAMDataCollection:
 
 
 def test_nonquiet_constructor_warning_is_imported():
-    assert (
-        new_database_module.warning_about_biogenic_co2
-        is warning_about_biogenic_co2
-    )
+    assert new_database_module.warning_about_biogenic_co2 is warning_about_biogenic_co2
 
 
-def test_update_runs_hydrogen_finalizer_before_database_dump(monkeypatch):
+def test_update_runs_hydrogen_finalizer_before_inventory_storage(monkeypatch):
     events = []
     scenario = {
         "database": [{"name": "source"}],
@@ -70,7 +72,7 @@ def test_update_runs_hydrogen_finalizer_before_database_dump(monkeypatch):
     obj.use_absolute_efficiency = False
     obj.gains_scenario = "CLE"
     obj.scenarios = [scenario]
-    obj.database = None
+    obj._database = None
     obj._database_is_complete = False
     obj._load_scenario_database_for_update = (
         lambda scenario, scenario_position: scenario
@@ -86,15 +88,46 @@ def test_update_runs_hydrogen_finalizer_before_database_dump(monkeypatch):
         lambda scenario, *_args: events.append("finalize") or scenario,
     )
     monkeypatch.setattr(
-        new_database_module,
-        "dump_database",
-        lambda scenario: events.append("dump") or scenario,
+        obj,
+        "_store_updated_scenario",
+        lambda *_args, **_kwargs: events.append("store"),
     )
     monkeypatch.setattr(obj, "_clear_scenario_runtime_state", lambda scenario: None)
 
     obj.update(["heat"])
 
-    assert events == ["transform", "finalize", "dump"]
+    assert events == ["transform", "finalize", "store"]
+
+
+@pytest.mark.parametrize(
+    "pathway",
+    [
+        "SSP1-PkBudg1150",
+        "SSP1-PkBudg500",
+        "SSP2-PkBudg1150",
+        "SSP2-PkBudg500",
+        "SSP5-PkBudg1150",
+        "SSP5-PkBudg500",
+    ],
+)
+def test_unavailable_peak_budget_pathways_fail_before_download(pathway, tmp_path):
+    assert pathway not in new_database_module.config["SUPPORTED_PATHWAYS"]
+
+    with pytest.raises(ValueError) as error:
+        check_pathway_name(pathway, tmp_path, "remind")
+
+    message = str(error.value)
+    assert f"remind - {pathway}" in message
+    assert "not available for automatic download" in message
+    assert "Zenodo IAM archive" in message
+    assert f"remind_{pathway}.csv" in message
+
+
+def test_unavailable_peak_budget_pathway_accepts_local_scenario(tmp_path):
+    pathway = "SSP2-PkBudg1150"
+    (tmp_path / f"remind_{pathway}.csv").write_text("scenario", encoding="utf-8")
+
+    assert check_pathway_name(pathway, tmp_path, "remind") == pathway
 
 
 def _write_cache_manifest(cache_ref, *shard_files):
@@ -111,6 +144,75 @@ def _write_cache_manifest(cache_ref, *shard_files):
         )
 
     return manifest_path
+
+
+def test_compact_geography_topology_is_shared_by_model_and_regions():
+    obj = object.__new__(NewDatabase)
+    obj.inventory_backend = "compact"
+    obj._shared_geography_caches = {}
+    image_2030 = {
+        "model": "image",
+        "year": 2030,
+        "iam data": types.SimpleNamespace(regions=["R1", "World"]),
+        "cache": {"scenario-only": {}},
+    }
+    image_2050 = {
+        "model": "image",
+        "year": 2050,
+        "iam data": types.SimpleNamespace(regions=["R1", "World"]),
+    }
+    remind_2050 = {
+        "model": "remind",
+        "year": 2050,
+        "iam data": types.SimpleNamespace(regions=["R1", "World"]),
+    }
+
+    for scenario in (image_2030, image_2050, remind_2050):
+        obj._attach_shared_geography_cache(scenario)
+
+    gis_key = new_database_module._SCENARIO_GIS_CACHE_KEY
+    row_key = new_database_module._SCENARIO_ROW_CACHE_KEY
+    assert image_2030["cache"]["scenario-only"] == {}
+    assert image_2030["cache"][gis_key] is image_2050["cache"][gis_key]
+    assert image_2030["cache"][row_key] is image_2050["cache"][row_key]
+    assert image_2030["cache"][gis_key] is not remind_2050["cache"][gis_key]
+    assert image_2030["cache"][row_key] is not remind_2050["cache"][row_key]
+
+    obj.scenarios = [image_2030, image_2050, remind_2050]
+    image_key = obj._geography_topology_key(image_2030)
+    remind_key = obj._geography_topology_key(remind_2050)
+    obj._release_shared_geography_cache(image_2030, 0)
+    assert image_key in obj._shared_geography_caches
+    obj._release_shared_geography_cache(image_2050, 1)
+    assert image_key not in obj._shared_geography_caches
+    assert remind_key in obj._shared_geography_caches
+    obj._release_shared_geography_cache(remind_2050, 2)
+    assert obj._shared_geography_caches == {}
+
+    legacy = object.__new__(NewDatabase)
+    legacy.inventory_backend = "legacy"
+    legacy_scenario = {"model": "image"}
+    legacy._attach_shared_geography_cache(legacy_scenario)
+    assert "cache" not in legacy_scenario
+
+
+def test_validation_iam_fingerprint_tracks_source_content(tmp_path):
+    source = tmp_path / "image_path.csv"
+    source.write_text("first", encoding="utf-8")
+    obj = object.__new__(NewDatabase)
+    scenario = {
+        "model": "image",
+        "pathway": "path",
+        "year": 2050,
+        "filepath": source,
+    }
+
+    first = obj._validation_iam_fingerprint(scenario)
+    assert obj._validation_iam_fingerprint(scenario) == first
+
+    source.write_text("second-content", encoding="utf-8")
+
+    assert obj._validation_iam_fingerprint(scenario) != first
 
 
 def test_ecospold_constructor_does_not_check_biosphere_database(monkeypatch):
@@ -255,7 +357,7 @@ def test_write_db_to_brightway_requires_registered_biosphere(monkeypatch):
         obj.write_db_to_brightway(name=["test-db"])
 
 
-def test_write_db_to_brightway_fast_path_runs_internal_check(monkeypatch):
+def test_write_db_to_brightway_fast_path_reuses_export_session_check(monkeypatch):
     prepared_database = [{"name": "prepared dataset", "exchanges": []}]
     captured = {
         "loaded": None,
@@ -265,12 +367,19 @@ def test_write_db_to_brightway_fast_path_runs_internal_check(monkeypatch):
         "pickles_deleted": 0,
     }
 
-    def fake_load_database(scenario, original_database, load_metadata, warning=True):
+    def fake_load_database(
+        scenario,
+        original_database,
+        load_metadata,
+        warning=True,
+        consume_compact=False,
+    ):
         captured["loaded"] = {
             "scenario": scenario.copy(),
             "original_database": original_database,
             "load_metadata": load_metadata,
             "warning": warning,
+            "consume_compact": consume_compact,
         }
         loaded = scenario.copy()
         loaded["database"] = [{"name": "loaded dataset", "exchanges": []}]
@@ -353,6 +462,7 @@ def test_write_db_to_brightway_fast_path_runs_internal_check(monkeypatch):
         "original_database": [],
         "load_metadata": True,
         "warning": False,
+        "consume_compact": True,
     }
     assert captured["prepared"] == {
         "scenario": {
@@ -369,7 +479,7 @@ def test_write_db_to_brightway_fast_path_runs_internal_check(monkeypatch):
     assert captured["written"]["data"] == prepared_database
     assert captured["written"]["name"] == "fast-db"
     assert captured["written"]["fast"] is True
-    assert captured["written"]["check_internal"] is True
+    assert captured["written"]["check_internal"] is False
     assert captured["written"]["metadata"]["iam_model"] == "image"
     assert captured["written"]["metadata"]["pathway"] == "SSP2-Base"
     assert (
@@ -388,7 +498,7 @@ def test_write_db_to_brightway_fast_path_runs_internal_check(monkeypatch):
     assert captured["pickles_deleted"] == 1
 
 
-def test_write_db_to_brightway_fast_path_reports_major_validation_errors(monkeypatch):
+def test_write_db_to_brightway_fast_path_respects_disabled_failure_reports(monkeypatch):
     captured = {"reports": 0}
 
     monkeypatch.setattr(
@@ -399,7 +509,7 @@ def test_write_db_to_brightway_fast_path_reports_major_validation_errors(monkeyp
     monkeypatch.setattr(
         new_database_module,
         "load_database",
-        lambda scenario, original_database, load_metadata, warning=True: scenario.copy(),
+        lambda scenario, original_database, load_metadata, warning=True, consume_compact=False: scenario.copy(),
     )
     monkeypatch.setattr(
         new_database_module,
@@ -438,7 +548,7 @@ def test_write_db_to_brightway_fast_path_reports_major_validation_errors(monkeyp
     ):
         obj.write_db_to_brightway(name="fast-db")
 
-    assert captured["reports"] == 1
+    assert captured["reports"] == 0
 
 
 def test_write_superstructure_to_brightway_requires_registered_biosphere(monkeypatch):
@@ -533,6 +643,8 @@ def test_write_superstructure_to_brightway_uses_fast_writer_after_full_preparati
         original_database,
         biosphere_name,
         version,
+        *,
+        is_superstructure=False,
     ):
         captured["prepared_export"] = {
             "scenario": scenario.copy(),
@@ -540,6 +652,7 @@ def test_write_superstructure_to_brightway_uses_fast_writer_after_full_preparati
             "original_database": original_database,
             "biosphere_name": biosphere_name,
             "version": version,
+            "is_superstructure": is_superstructure,
         }
         return prepared_database
 
@@ -589,7 +702,7 @@ def test_write_superstructure_to_brightway_uses_fast_writer_after_full_preparati
     monkeypatch.setattr(
         new_database_module,
         "end_of_process",
-        lambda scenario: captured["ended"].append(scenario.copy()),
+        lambda scenario, **kwargs: captured["ended"].append((scenario.copy(), kwargs)),
     )
     monkeypatch.setattr(
         new_database_module,
@@ -626,6 +739,7 @@ def test_write_superstructure_to_brightway_uses_fast_writer_after_full_preparati
         "original_database": original_database,
         "biosphere_name": "test-biosphere",
         "version": "3.12",
+        "is_superstructure": True,
     }
     assert captured["written"]["data"] == prepared_database
     assert captured["written"]["name"] == "super-db"
@@ -634,7 +748,9 @@ def test_write_superstructure_to_brightway_uses_fast_writer_after_full_preparati
     assert [
         s["representative_time"] for s in captured["written"]["metadata"]["scenarios"]
     ] == [f"{scenario['year']}-01-01T00:00:00" for scenario in obj.scenarios]
-    assert captured["ended"] == obj.scenarios
+    assert captured["ended"] == [
+        (scenario, {"preserve_applied_functions": True}) for scenario in obj.scenarios
+    ]
     assert captured["pickles_deleted"] == 1
 
 
@@ -776,7 +892,7 @@ def test_write_scenario_array_writes_database_then_package_and_finalizes_once(
     monkeypatch.setattr(
         new_database_module,
         "end_of_process",
-        lambda scenario: events.append(("end", scenario)),
+        lambda scenario, **kwargs: events.append(("end", scenario, kwargs)),
     )
     monkeypatch.setattr(
         new_database_module,
@@ -803,6 +919,11 @@ def test_write_scenario_array_writes_database_then_package_and_finalizes_once(
         "end",
         "delete",
     ]
+    assert all(
+        event[2] == {"preserve_applied_functions": True}
+        for event in events
+        if event[0] == "end"
+    )
     database_call = events[1][1]
     assert database_call["data"] == prepared_database
     assert database_call["name"] == "scenario-db"
@@ -823,7 +944,7 @@ def test_write_scenario_array_writes_database_then_package_and_finalizes_once(
         "brightway_project": "scenario-project",
         "source_database": "source-db",
         "ecoinvent_version": "3.12",
-        "premise_version": "2.4.9.2",
+        "premise_version": ".".join(map(str, new_database_module.__version__)),
         "scenario_count": 3,
         "scenario_labels": ["original", "scenario-a", "scenario-b"],
     }
@@ -921,7 +1042,10 @@ def test_load_original_database_reloads_released_base_database_from_cache(tmp_pa
 
 def test_find_cached_db_supports_manifest_bundle(monkeypatch, tmp_path):
     version_token = "".join(map(str, new_database_module.__version__))
-    cache_ref = tmp_path / f"cached_{version_token}_source-db_wo_uncertainty.pickle"
+    cache_ref = (
+        tmp_path
+        / f"cached_{version_token}_v{new_database_module.CACHE_SCHEMA_VERSION}_source-db_wo_uncertainty.pickle"
+    )
     metadata_ref = Path(str(cache_ref).replace(".pickle", " (metadata).pickle"))
     shard = tmp_path / "cached-db.part-a.pickle"
     metadata_shard = tmp_path / "cached-db.metadata.part-a.pickle"
@@ -946,6 +1070,49 @@ def test_find_cached_db_supports_manifest_bundle(monkeypatch, tmp_path):
     assert loaded == [{"name": "base"}]
     assert obj.database_cache_filepath == manifest_path
     assert obj.database_metadata_cache_filepath == metadata_manifest_path
+
+
+def test_compact_source_checkpoint_is_invalidated_with_underlying_caches(
+    monkeypatch, tmp_path
+):
+    obj = object.__new__(NewDatabase)
+    obj.source_type = "brightway"
+    obj.system_model = "cutoff"
+    obj.version = "3.12"
+    obj.keep_source_db_uncertainty = False
+    obj.keep_imports_uncertainty = False
+    monkeypatch.setattr(new_database_module, "DIR_CACHED_DB", tmp_path)
+
+    source = obj._database_cache_path("source-db")
+    inventories = obj._database_cache_path("source-db", inventories=True)
+    cache_paths = (
+        source,
+        obj._metadata_cache_path(source),
+        inventories,
+        obj._metadata_cache_path(inventories),
+    )
+    for cache_path in cache_paths:
+        cache_path.write_bytes(b"cache")
+
+    store = CompactInventoryStore(
+        [
+            {
+                "name": "activity",
+                "reference product": "product",
+                "location": "GLO",
+                "unit": "kilogram",
+                "exchanges": [],
+            }
+        ]
+    )
+    checkpoint = obj._write_compact_source_checkpoint("source-db", store)
+
+    found = obj._find_compact_source_checkpoint("source-db")
+    assert found is not None
+    assert found[0] == checkpoint
+
+    source.write_bytes(b"changed-cache")
+    assert obj._find_compact_source_checkpoint("source-db") is None
 
 
 def test_constructor_marks_database_complete_after_inventory_cache_miss(monkeypatch):
@@ -999,7 +1166,12 @@ def test_constructor_marks_database_complete_after_inventory_cache_miss(monkeypa
 
     assert obj._database_is_complete is True
     assert obj._can_reload_original_database() is True
-    assert obj.database == [{"name": "base"}, {"name": "inventory"}]
+    assert obj.materialize_inventory() == [
+        {"name": "base", "exchanges": []},
+        {"name": "inventory", "exchanges": []},
+    ]
+    with pytest.raises(AttributeError, match="NewDatabase.database was removed"):
+        _ = obj.database
 
 
 def test_inventory_cache_miss_replaces_full_inventory_tail_with_trimmed_cache(
@@ -1008,6 +1180,7 @@ def test_inventory_cache_miss_replaces_full_inventory_tail_with_trimmed_cache(
     base_dataset = {"name": "base"}
     imported_inventory = {"name": "inventory", "extra": "full"}
     trimmed_inventory = {"name": "inventory"}
+    cache_paths = []
 
     obj = object.__new__(NewDatabase)
     obj.database = [base_dataset]
@@ -1019,6 +1192,7 @@ def test_inventory_cache_miss_replaces_full_inventory_tail_with_trimmed_cache(
         return [imported_inventory]
 
     def fake_create_cache(data, file_name):
+        cache_paths.append(file_name)
         return [trimmed_inventory], Path("inventories-metadata.pickle")
 
     monkeypatch.setattr(
@@ -1032,7 +1206,7 @@ def test_inventory_cache_miss_replaces_full_inventory_tail_with_trimmed_cache(
 
     assert result is None
     assert obj.database == [base_dataset, trimmed_inventory]
-    assert obj.inventories_cache_filepath.name.endswith("_inventories.pickle")
+    assert cache_paths == [obj.inventories_cache_filepath]
     assert obj.inventories_metadata_cache_filepath == Path(
         "inventories-metadata.pickle"
     )

@@ -1,17 +1,22 @@
 import xarray as xr
 
-from ..activity_maps import InventorySet
-from ..inventory_imports import get_biosphere_code
-from ..logger import create_logger
-from ..transformation import BaseTransformation
-from ..validation import FuelsValidation
-from .biofuels import BiofuelsMixin
-from .biogas import BiogasMixin
-from .config import FUEL_GROUPS
 from .hydrogen import HydrogenMixin
+from .biogas import BiogasMixin
+from .biofuels import BiofuelsMixin
 from .liquid_fuels import SyntheticFuelsMixin
 from .markets import FuelMarketsMixin
 from .utils import fetch_mapping
+from .config import FUEL_GROUPS
+from ..transformation import (
+    BaseTransformation,
+)
+from ..validation import FuelsValidation
+from ..validation_framework import record_validation_phase
+from ..activity_maps import InventorySet
+from ..inventory_imports import get_biosphere_code
+from ..logger import create_logger
+from ..provenance import record_change_event
+from ..inventory_store import get_scenario_inventory, replace_scenario_inventory
 
 logger = create_logger("fuel")
 
@@ -50,7 +55,7 @@ HYDROGEN_LOG_COLUMNS = [
 def _store_hydrogen_distribution_state(scenario, fuels):
     """Copy H2 diagnostics and transformation state back to a scenario."""
 
-    scenario["database"] = fuels.database
+    replace_scenario_inventory(scenario, fuels.database)
     scenario["cache"] = fuels.cache
     scenario["index"] = fuels.index
     scenario["unmatched hydrogen consumers"] = fuels.unmatched_hydrogen_consumers
@@ -106,7 +111,7 @@ def _hydrogen_distribution_validator(scenario):
         scenario=scenario["pathway"],
         year=scenario["year"],
         regions=scenario["iam data"].regions,
-        database=scenario["database"],
+        database=get_scenario_inventory(scenario),
         iam_data=scenario["iam data"],
     )
 
@@ -118,7 +123,7 @@ def _finalize_hydrogen_distribution(scenario, version, system_model):
         return scenario
 
     fuels = Fuels(
-        database=scenario["database"],
+        database=get_scenario_inventory(scenario),
         iam_data=scenario["iam data"],
         model=scenario["model"],
         pathway=scenario["pathway"],
@@ -137,12 +142,14 @@ def _finalize_hydrogen_distribution(scenario, version, system_model):
     validator.check_hydrogen_distribution_integrity()
     if validator.major_issues_log:
         reasons = sorted(
-            {issue.get("reason", "unknown issue") for issue in validator.major_issues_log}
+            {
+                issue.get("reason", "unknown issue")
+                for issue in validator.major_issues_log
+            }
         )
         raise ValueError(
             "Hydrogen distribution finalization left "
-            f"{len(validator.major_issues_log)} major issue(s): "
-            + "; ".join(reasons)
+            f"{len(validator.major_issues_log)} major issue(s): " + "; ".join(reasons)
         )
     return scenario
 
@@ -158,7 +165,7 @@ def _update_fuels(scenario, version, system_model):
     """
 
     fuels = Fuels(
-        database=scenario["database"],
+        database=get_scenario_inventory(scenario),
         iam_data=scenario["iam data"],
         model=scenario["model"],
         pathway=scenario["pathway"],
@@ -188,6 +195,23 @@ def _update_fuels(scenario, version, system_model):
         fuels.generate_hydrogen_activities()
         fuels.generate_synthetic_fuel_activities()
         fuels.generate_biogas_activities()
+
+        if system_model == "consequential":
+            vector_validation = FuelsValidation(
+                model=scenario["model"],
+                scenario=scenario["pathway"],
+                year=scenario["year"],
+                regions=scenario["iam data"].regions,
+                database=fuels.database,
+                iam_data=scenario["iam data"],
+                technology_map=fuels.fuel_map,
+                system_model=system_model,
+            )
+            record_validation_phase(
+                scenario,
+                vector_validation.run_consequential_supplier_vector_checks(),
+            )
+        fuels.clear_validation_provenance()
         fuels.relink_datasets()
         fuels.synchronize_hydrogen_distribution()
         fuels.write_hydrogen_sector_market_relink_logs()
@@ -200,9 +224,20 @@ def _update_fuels(scenario, version, system_model):
     else:
         print("No fuel scenario data available -- skipping")
 
-    validate = _hydrogen_distribution_validator(scenario)
+    validate = FuelsValidation(
+        model=scenario["model"],
+        scenario=scenario["pathway"],
+        year=scenario["year"],
+        regions=scenario["iam data"].regions,
+        database=fuels.database,
+        iam_data=scenario["iam data"],
+        technology_map=fuels.fuel_map,
+        system_model=system_model,
+    )
 
-    validate.run_fuel_checks()
+    record_validation_phase(
+        scenario, validate.run_fuel_checks(check_supplier_vectors=False)
+    )
 
     return scenario
 
@@ -244,9 +279,7 @@ class Fuels(
                     for item in sublist
                 ]
                 if g
-                in self.iam_data.production_volumes.coords[
-                    "variables"
-                ].values.tolist()
+                in self.iam_data.production_volumes.coords["variables"].values.tolist()
             ]
         )
 
@@ -267,48 +300,15 @@ class Fuels(
 
         self.new_fuel_markets = {}
 
+    def clear_validation_provenance(self) -> None:
+        """Remove transient technology labels after incremental validation."""
+
+        self.clear_validation_provenance_field("premise market technology")
+
     def write_log(self, dataset, status="created"):
-        """
-        Write log file.
-        """
-        hydrogen_log_parameters = dataset.get("log parameters", {})
+        """Record a structured fuel provenance event."""
 
-        logger.info(
-            f"{status}|{self.model}|{self.scenario}|{self.year}|"
-            f"{dataset['name']}|{dataset['location']}|"
-            f"{dataset.get('log parameters', {}).get('initial amount of fossil CO2', '')}|"
-            f"{dataset.get('log parameters', {}).get('new amount of fossil CO2', '')}|"
-            f"{dataset.get('log parameters', {}).get('new amount of biogenic CO2', '')}|"
-            f"{dataset.get('log parameters', {}).get('initial energy input for hydrogen production', '')}|"
-            f"{dataset.get('log parameters', {}).get('new energy input for hydrogen production', '')}|"
-            f"{dataset.get('log parameters', {}).get('fuel conversion efficiency', '')}|"
-            f"{dataset.get('log parameters', {}).get('land footprint', '')}|"
-            f"{dataset.get('log parameters', {}).get('land use CO2', '')}|"
-            f"{dataset.get('log parameters', {}).get('fossil CO2 per kg fuel', '')}|"
-            f"{dataset.get('log parameters', {}).get('non-fossil CO2 per kg fuel', '')}|"
-            f"{dataset.get('log parameters', {}).get('lower heating value', '')}|"
-            f"{self._format_hydrogen_log_parameters(hydrogen_log_parameters)}"
-        )
-
-    @staticmethod
-    def _format_log_value(value):
-        if value is None:
-            return ""
-        try:
-            if value != value:
-                return ""
-        except (TypeError, ValueError):
-            pass
-        if isinstance(value, (list, tuple, set)):
-            return ", ".join(str(item) for item in value)
-        return str(value).replace("|", "/")
-
-    @classmethod
-    def _format_hydrogen_log_parameters(cls, parameters):
-        return "|".join(
-            cls._format_log_value(parameters.get(column))
-            for column in HYDROGEN_LOG_COLUMNS
-        )
+        record_change_event(self, dataset, status, sector="fuels")
 
     def _write_hydrogen_log(self, status, dataset, parameters):
         dataset = {
@@ -330,12 +330,8 @@ class Fuels(
                 "hydrogen subsector": row.get("subsector"),
                 "hydrogen demand node type": row.get("demand_node_type"),
                 "hydrogen demand nodes": row.get("demand_nodes"),
-                "hydrogen demand nodes rounded up": row.get(
-                    "demand_nodes_rounded_up"
-                ),
-                "hydrogen demand t per year": row.get(
-                    "hydrogen_demand_t_per_year"
-                ),
+                "hydrogen demand nodes rounded up": row.get("demand_nodes_rounded_up"),
+                "hydrogen demand t per year": row.get("hydrogen_demand_t_per_year"),
                 "hydrogen demand t per node per year": row.get(
                     "hydrogen_demand_t_per_node_per_year"
                 ),
@@ -348,28 +344,20 @@ class Fuels(
                 "hydrogen distribution compressed gaseous pipeline": row.get(
                     "compressed_gaseous_pipeline"
                 ),
-                "hydrogen distribution liquid truck": row.get(
-                    "liquid_hydrogen_truck"
-                ),
+                "hydrogen distribution liquid truck": row.get("liquid_hydrogen_truck"),
                 "hydrogen distribution liquid ammonia ship": row.get(
                     "liquid_ammonia_ship"
                 ),
                 "hydrogen distribution liquid hydrogen ship": row.get(
                     "liquid_hydrogen_ship"
                 ),
-                "hydrogen on-site production": row.get(
-                    "on_site_production_share"
-                ),
+                "hydrogen on-site production": row.get("on_site_production_share"),
                 "hydrogen distribution rule": row.get("distribution_rule"),
-                "hydrogen distribution status": row.get(
-                    "distribution_status"
-                ),
+                "hydrogen distribution status": row.get("distribution_status"),
                 "hydrogen distribution share total": row.get(
                     "distribution_share_total"
                 ),
-                "hydrogen distribution reason": row.get(
-                    "distribution_reason"
-                ),
+                "hydrogen distribution reason": row.get("distribution_reason"),
             }
             dataset = {
                 "name": "hydrogen demand nodes",
@@ -382,9 +370,7 @@ class Fuels(
             )
 
     def write_hydrogen_sector_market_relink_logs(self):
-        matched_consumers = getattr(
-            self, "matched_hydrogen_consumers", []
-        )
+        matched_consumers = getattr(self, "matched_hydrogen_consumers", [])
         for consumer in matched_consumers:
             parameters = {
                 "hydrogen report type": "sector market relink",
@@ -392,9 +378,7 @@ class Fuels(
                 "hydrogen exchange location": consumer.get(
                     "hydrogen exchange location"
                 ),
-                "hydrogen exchange amount": consumer.get(
-                    "hydrogen exchange amount"
-                ),
+                "hydrogen exchange amount": consumer.get("hydrogen exchange amount"),
                 "old hydrogen market": consumer.get("old hydrogen market"),
                 "old hydrogen market location": consumer.get(
                     "old hydrogen market location"
@@ -403,9 +387,7 @@ class Fuels(
                 "new hydrogen market location": consumer.get(
                     "new hydrogen market location"
                 ),
-                "hydrogen relinking reason": consumer.get(
-                    "hydrogen relinking reason"
-                ),
+                "hydrogen relinking reason": consumer.get("hydrogen relinking reason"),
                 "old generic hydrogen market": consumer.get(
                     "old generic hydrogen market"
                 ),

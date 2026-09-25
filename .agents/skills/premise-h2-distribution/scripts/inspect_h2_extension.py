@@ -24,7 +24,8 @@ REQUIRED_PATHS = (
     "premise/fuels/config.py",
     "premise/fuels/h2_decision_tree/hydrogen_distribution_shares.yaml",
     "premise/fuels/h2_decision_tree/hydrogen_consumer_routing.yaml",
-    "premise/data/utils/logging/reporting.yaml",
+    "premise/provenance.py",
+    "premise/change_report.py",
     "premise/data/additional_inventories/lci-hydrogen-distribution.xlsx",
     "premise/data/additional_inventories/lci-hydrogen-transport.xlsx",
     "tests/test_hydrogen.py",
@@ -159,7 +160,6 @@ def inspect_repo(repo: Path) -> dict[str, Any]:
     routing = load_yaml(
         repo / "premise/fuels/h2_decision_tree/hydrogen_consumer_routing.yaml"
     )
-    reporting = load_yaml(repo / "premise/data/utils/logging/reporting.yaml")
 
     errors: list[str] = []
     warnings: list[str] = []
@@ -266,16 +266,16 @@ def inspect_repo(repo: Path) -> dict[str, Any]:
     if len(markets) != len(set(markets)):
         errors.append("Consumer-routing sector market names are not unique.")
 
-    report_columns = reporting.get("premise_fuel", {}).get("columns", {})
-    if not isinstance(report_columns, dict):
-        errors.append("reporting.yaml has no premise_fuel columns mapping.")
-        report_columns = {}
+    base_text = (repo / "premise/fuels/base.py").read_text(encoding="utf-8")
     for column in log_columns:
-        if column not in report_columns:
+        if base_text.count(repr(column)) + base_text.count('"' + column + '"') < 2:
             add_issue(
                 errors,
-                f"Hydrogen log column {column!r} is absent from reporting.yaml.",
+                f"Hydrogen audit field {column!r} has no provenance mapping.",
             )
+    report_text = (repo / "premise/change_report.py").read_text(encoding="utf-8")
+    if '"Hydrogen", summary.hydrogen_rows' not in report_text:
+        errors.append("Structured change report has no Hydrogen audit sheet.")
 
     new_database_text = (repo / "premise/new_database.py").read_text(encoding="utf-8")
     for filename in (

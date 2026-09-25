@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="1460" viewBox="0 0 1040 1460" role="img" aria-labelledby="title description">
+  <title id="title">Hydrogen distribution decision tree</title>
+  <desc id="description">For each regional demand row, D is annual hydrogen demand per node in tonnes. Heating always uses 100 percent compressed gaseous pipeline. Otherwise missing or invalid D leaves the row without valid logistics. Steel plants with D at least 50,000 use 70 percent pipeline and 30 percent ammonia shipping. Remaining rows below 1,000 use 80 percent gaseous truck and 20 percent liquid hydrogen truck; from 1,000 to below 5,000 use 25 percent gaseous truck, 25 percent liquid hydrogen truck and 50 percent pipeline; from 5,000 to below 50,000 use 20 percent liquid hydrogen truck and 80 percent pipeline; at least 50,000 use 80 percent pipeline and 20 percent on-site production. Shares and thresholds are indicative assumptions.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#59768a"/>
+    </marker>
+    <style>
+      text { font-family: Arial, Helvetica, sans-serif; fill: #203645; }
+      .decision { fill: #f0f6fa; stroke: #789bad; stroke-width: 2; }
+      .outcome { fill: #edf7f3; stroke: #6a9b8c; stroke-width: 2; }
+      .edge { fill: none; stroke: #59768a; stroke-width: 2; marker-end: url(#arrow); }
+      .question { font-size: 22px; font-weight: 600; text-anchor: middle; }
+      .share { font-size: 21px; }
+      .label { font-size: 18px; font-weight: 600; fill: #425466; }
+      .note { font-size: 18px; fill: #425466; }
+    </style>
+  </defs>
+  <rect width="1040" height="1460" rx="12" fill="white"/>
+  <text x="40" y="47" font-size="30" font-weight="700">Hydrogen distribution decision tree</text>
+  <text x="40" y="80" class="note">Current default rules · follow the first matching branch</text>
+
+  <rect x="65" y="112" width="380" height="80" rx="12" class="decision"/>
+  <text x="255" y="143" class="question">One regional demand row</text>
+  <text x="255" y="171" text-anchor="middle" class="note">D = tonnes H2 per demand node per year</text>
+  <path d="M255 192 V230" class="edge"/>
+
+  <path d="M255 232 L425 280 L255 328 L85 280 Z" class="decision"/>
+  <text x="255" y="288" class="question">Heating?</text>
+  <path d="M425 280 H518" class="edge"/>
+  <text x="462" y="267" class="label">Yes</text>
+  <rect x="520" y="242" width="465" height="76" rx="12" class="outcome"/>
+  <text x="542" y="274" class="share">100% compressed gaseous pipeline</text>
+  <text x="542" y="300" class="note">Priority 10 · no node estimate required</text>
+  <path d="M255 328 V373" class="edge"/>
+  <text x="270" y="357" class="label">No</text>
+
+  <path d="M255 375 L435 430 L255 485 L75 430 Z" class="decision"/>
+  <text x="255" y="426" class="question">D available, finite</text>
+  <text x="255" y="452" class="question">and ≥ 0?</text>
+  <path d="M435 430 H518" class="edge"/>
+  <text x="463" y="417" class="label">No</text>
+  <rect x="520" y="386" width="465" height="88" rx="12" fill="#fff9e9" stroke="#b9974f" stroke-width="2"/>
+  <text x="542" y="418" class="share">Missing or invalid node estimate</text>
+  <text x="542" y="447" class="note">This row does not qualify a sector market.</text>
+  <path d="M255 485 V518" class="edge"/>
+  <text x="270" y="509" class="label">Yes</text>
+
+  <path d="M255 520 L445 580 L255 640 L65 580 Z" class="decision"/>
+  <text x="255" y="575" class="question">Steel plant AND</text>
+  <text x="255" y="602" class="question">D ≥ 50,000?</text>
+  <path d="M445 580 H518" class="edge"/>
+  <text x="463" y="567" class="label">Yes</text>
+  <rect x="520" y="531" width="465" height="98" rx="12" class="outcome"/>
+  <text x="542" y="562" class="share">70% compressed gaseous pipeline</text>
+  <text x="542" y="589" class="share">30% liquid ammonia by ship</text>
+  <text x="542" y="615" class="note">Priority 20 · before default demand bands</text>
+  <path d="M255 640 V683" class="edge"/>
+  <text x="270" y="669" class="label">No</text>
+
+  <path d="M255 685 L425 735 L255 785 L85 735 Z" class="decision"/>
+  <text x="255" y="743" class="question">D &lt; 1,000?</text>
+  <path d="M425 735 H518" class="edge"/>
+  <text x="462" y="722" class="label">Yes</text>
+  <rect x="520" y="693" width="465" height="84" rx="12" class="outcome"/>
+  <text x="542" y="726" class="share">80% compressed gaseous truck</text>
+  <text x="542" y="754" class="share">20% liquid hydrogen truck</text>
+  <path d="M255 785 V838" class="edge"/>
+  <text x="270" y="817" class="label">No</text>
+
+  <path d="M255 840 L425 890 L255 940 L85 890 Z" class="decision"/>
+  <text x="255" y="898" class="question">D &lt; 5,000?</text>
+  <path d="M425 890 H518" class="edge"/>
+  <text x="462" y="877" class="label">Yes</text>
+  <rect x="520" y="836" width="465" height="108" rx="12" class="outcome"/>
+  <text x="542" y="868" class="share">25% compressed gaseous truck</text>
+  <text x="542" y="896" class="share">25% liquid hydrogen truck</text>
+  <text x="542" y="924" class="share">50% compressed gaseous pipeline</text>
+  <path d="M255 940 V993" class="edge"/>
+  <text x="270" y="972" class="label">No</text>
+
+  <path d="M255 995 L425 1045 L255 1095 L85 1045 Z" class="decision"/>
+  <text x="255" y="1053" class="question">D &lt; 50,000?</text>
+  <path d="M425 1045 H518" class="edge"/>
+  <text x="462" y="1032" class="label">Yes</text>
+  <rect x="520" y="1003" width="465" height="84" rx="12" class="outcome"/>
+  <text x="542" y="1036" class="share">20% liquid hydrogen truck</text>
+  <text x="542" y="1064" class="share">80% compressed gaseous pipeline</text>
+  <path d="M255 1095 V1148" class="edge"/>
+  <text x="270" y="1127" class="label">No</text>
+
+  <rect x="85" y="1150" width="340" height="80" rx="12" class="decision"/>
+  <text x="255" y="1183" class="question">Otherwise</text>
+  <text x="255" y="1210" class="question">D ≥ 50,000</text>
+  <path d="M425 1190 H518" class="edge"/>
+  <rect x="520" y="1148" width="465" height="84" rx="12" class="outcome"/>
+  <text x="542" y="1181" class="share">80% compressed gaseous pipeline</text>
+  <text x="542" y="1209" class="share">20% on-site production*</text>
+
+  <text x="65" y="1273" class="note">Default demand bands have priority 100. Every distribution mix totals 100%.</text>
+  <text x="65" y="1302" class="note">*The on-site share adds no transport or conversion; the production mix is retained.</text>
+  <rect x="40" y="1330" width="960" height="98" rx="12" fill="#fff9e9" stroke="#b9974f" stroke-width="1.5"/>
+  <text x="60" y="1361" font-size="19" font-weight="600">Indicative distribution shares and thresholds</text>
+  <text x="60" y="1389" class="note">Shares are demand-weighted across rows when building each sector–region market.</text>
+  <text x="60" y="1415" class="note">Market creation also requires positive IAM demand and an eligible final consumer.</text>
+</svg>

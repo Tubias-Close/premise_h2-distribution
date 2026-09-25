@@ -1,9 +1,11 @@
+from copy import deepcopy
 from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
 import pytest
 
+import premise.new_database as new_database_module
 from premise.clean_datasets import remove_uncertainty
 from premise.export import *
 from premise.export import (
@@ -11,6 +13,159 @@ from premise.export import (
     _build_superstructure_db,
     _include_production_rows_for_changing_self_consumption,
 )
+from premise.validation_framework import PremiseValidationError
+
+
+@pytest.fixture
+def hydrogen_union_scenario():
+    """Baseline supply plus alternative REMIND and IMAGE transport links."""
+
+    def activity(name, product, location, unit):
+        return {
+            "name": name,
+            "reference product": product,
+            "location": location,
+            "unit": unit,
+            "exchanges": [
+                {
+                    "name": name,
+                    "product": product,
+                    "location": location,
+                    "unit": unit,
+                    "type": "production",
+                    "amount": 1.0,
+                }
+            ],
+        }
+
+    generic_name = "market for hydrogen, gaseous, low pressure"
+    product = "hydrogen, gaseous, low pressure"
+    markets = [
+        activity(generic_name, product, "RER", "kilogram"),
+        activity(generic_name + ", for transport", product, "EUR", "kilogram"),
+        activity(generic_name + ", for transport", product, "WEU", "kilogram"),
+    ]
+    consumer = activity(
+        "transport, freight train, fuel cell, hydrogen",
+        "transport, freight train",
+        "RER",
+        "ton kilometer",
+    )
+    consumer["exchanges"].extend(
+        {
+            **market["exchanges"][0],
+            "type": "technosphere",
+            "amount": amount,
+        }
+        for market, amount in zip(markets, (0.01, 0.0, 0.0))
+    )
+    return {
+        "model": "remind",
+        "pathway": "test",
+        "year": 2050,
+        "iam data": SimpleNamespace(regions=["EUR"]),
+        "additional valid regions": ["EUR", "WEU"],
+        "database": [*markets, consumer],
+    }
+
+
+@pytest.mark.parametrize("model, region", [("remind", "EUR"), ("image", "WEU")])
+def test_superstructure_preserves_baseline_and_alternative_hydrogen_links(
+    hydrogen_union_scenario, model, region
+):
+    scenario = hydrogen_union_scenario
+    scenario["model"] = model
+    scenario["iam data"].regions = [region]
+    original_database = deepcopy(scenario["database"])
+
+    database = prepare_db_for_export(
+        scenario,
+        name="super-db",
+        original_database=original_database,
+        version="3.12",
+        is_superstructure=True,
+    )
+
+    assert [
+        (exchange["name"], exchange["location"], exchange["amount"])
+        for exchange in database[-1]["exchanges"]
+        if exchange["type"] == "technosphere"
+    ] == [
+        (exchange["name"], exchange["location"], exchange["amount"])
+        for exchange in original_database[-1]["exchanges"]
+        if exchange["type"] == "technosphere"
+    ]
+
+    # The same links are invalid in an individual transformed scenario.
+    with pytest.raises(PremiseValidationError, match="HYDROGEN_CONSUMER_NOT_RELINKED"):
+        prepare_db_for_export(
+            scenario,
+            name="scenario-db",
+            original_database=original_database,
+            version="3.12",
+        )
+
+
+@pytest.mark.parametrize(
+    "defect, rule",
+    [
+        ("missing provider", "NON_EXISTING_DATASET"),
+        ("nan amount", "NON_FINITE_EXCHANGE_AMOUNT"),
+    ],
+)
+def test_superstructure_still_rejects_invalid_exchanges(
+    hydrogen_union_scenario, defect, rule
+):
+    scenario = hydrogen_union_scenario
+    if defect == "missing provider":
+        # Even a zero-amount alternative must resolve to a provider.
+        scenario["database"].pop(2)
+    else:
+        scenario["database"][-1]["exchanges"][-1]["amount"] = float("nan")
+
+    with pytest.raises(PremiseValidationError, match=rule):
+        prepare_db_for_export(
+            scenario,
+            name="super-db",
+            original_database=[],
+            version="3.12",
+            is_superstructure=True,
+        )
+
+
+@pytest.mark.parametrize("scenario_array", [False, True])
+def test_superstructure_rejects_invalid_hydrogen_constituent_before_building_union(
+    hydrogen_union_scenario, monkeypatch, scenario_array
+):
+    obj = object.__new__(new_database_module.NewDatabase)
+    obj.scenarios = [hydrogen_union_scenario]
+    obj.biosphere_name = "biosphere3"
+    obj.version = "3.12"
+    obj._load_original_database = lambda: []
+    obj._ensure_semantic_certification = lambda scenario: None
+    obj._handle_export_validation_error = lambda *args: None
+    monkeypatch.setattr(
+        new_database_module,
+        "load_database",
+        lambda scenario, **kwargs: deepcopy(scenario),
+    )
+
+    def fail_build_union(*args, **kwargs):
+        pytest.fail("Invalid constituent must fail before union construction")
+
+    monkeypatch.setattr(
+        new_database_module, "generate_superstructure_db", fail_build_union
+    )
+    monkeypatch.setattr(
+        new_database_module, "_build_superstructure_db", fail_build_union
+    )
+
+    with pytest.raises(PremiseValidationError, match="HYDROGEN_CONSUMER_NOT_RELINKED"):
+        obj._prepare_superstructure_export(
+            name="super-db",
+            scenario_array=scenario_array,
+            prerequisites_validated=True,
+        )
 
 
 def test_simapro_units():
@@ -147,6 +302,17 @@ def test_prepare_db_for_fast_export_runs_core_checks(monkeypatch):
         def run_fast_export_checks(self):
             captured["run_fast_export_checks"] = True
 
+        def make_normalizer(self):
+            class DummyNormalizer:
+                def prepare_fast_export_fields(inner_self):
+                    captured["prepare_fast_export_fields"] = True
+                    return prepared_database
+
+                def normalize_database(inner_self):
+                    raise AssertionError("fast export must not fully normalize")
+
+            return DummyNormalizer()
+
     monkeypatch.setattr("premise.export.BaseDatasetValidator", DummyValidator)
 
     scenario = {
@@ -177,6 +343,7 @@ def test_prepare_db_for_fast_export_runs_core_checks(monkeypatch):
         "extra_regions": None,
     }
     assert captured["run_fast_export_checks"] is True
+    assert captured["prepare_fast_export_fields"] is True
     assert result == prepared_database
 
 

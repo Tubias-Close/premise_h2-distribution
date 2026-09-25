@@ -4,8 +4,6 @@ import openpyxl
 import xarray as xr
 
 from premise.report import (
-    convert_log_to_excel_file,
-    fetch_columns,
     fetch_data,
     generate_summary_report,
 )
@@ -74,32 +72,53 @@ def test_summary_report_contains_all_three_heat_sheets(tmp_path):
 
 
 def test_fuel_change_report_preserves_ammonia_and_onsite_shares(tmp_path):
-    columns = fetch_columns("premise_fuel")
-    contiguous_share_columns = [
-        "hydrogen distribution compressed gaseous truck",
-        "hydrogen distribution compressed gaseous pipeline",
-        "hydrogen distribution liquid truck",
-        "hydrogen distribution liquid ammonia ship",
-        "hydrogen distribution liquid hydrogen ship",
-        "hydrogen on-site production",
+    from premise.change_report import ReportScenario, generate_structured_change_report
+    from premise.fuels.base import Fuels
+    from premise.inventory_store import CompactInventoryStore
+    from premise.provenance import ProvenanceCollector
+
+    identity = ("image", "test", 2050, ())
+    collector = ProvenanceCollector("hydrogen-report")
+    fuels = object.__new__(Fuels)
+    with collector.session(identity, "fuels"):
+        for region, ammonia_share in [("EUR", 0.3), ("USA", 0.6)]:
+            fuels._write_hydrogen_log(
+                "created (hydrogen demand node)",
+                {"name": "hydrogen demand nodes", "location": region},
+                {
+                    "hydrogen report type": "demand node",
+                    "hydrogen sector": "Steel",
+                    "hydrogen distribution liquid ammonia ship": ammonia_share,
+                    "hydrogen on-site production": 0.2,
+                },
+            )
+    store = CompactInventoryStore([])
+    generated = generate_structured_change_report(
+        source_store=store,
+        scenarios=(
+            ReportScenario(
+                identity=identity,
+                store=store,
+                provenance_payload=collector.payload_for(identity),
+            ),
+        ),
+        build_id="hydrogen-report",
+        source_fingerprint="source",
+        filepath=tmp_path,
+        name="hydrogen.xlsx",
+        source_database="source-db",
+        source_type="brightway",
+        version="3.12",
+        system_model="cutoff",
+        premise_version="2.5.2",
+    )
+    workbook = openpyxl.load_workbook(generated.artifacts.workbook_path, read_only=True)
+    rows = list(workbook["Hydrogen"].values)
+    records = [dict(zip(rows[0], row)) for row in rows[1:]]
+    assert len(records) == 2
+    assert [row["location"] for row in records] == ["EUR", "USA"]
+    assert [row["hydrogen distribution liquid ammonia ship"] for row in records] == [
+        0.3,
+        0.6,
     ]
-    first_share_column = columns.index(contiguous_share_columns[0])
-    assert columns[
-        first_share_column : first_share_column + len(contiguous_share_columns)
-    ] == contiguous_share_columns
-
-    log_values = [""] * len(columns)
-    log_values[
-        columns.index("hydrogen distribution liquid ammonia ship")
-    ] = "0.3"
-    log_values[columns.index("hydrogen on-site production")] = "0.2"
-
-    log_filepath = tmp_path / "premise_fuel.log"
-    log_filepath.write_text("|".join(log_values), encoding="utf-8")
-
-    report = convert_log_to_excel_file(log_filepath)
-
-    assert report.loc[
-        0, "hydrogen distribution liquid ammonia ship"
-    ] == 0.3
-    assert report.loc[0, "hydrogen on-site production"] == 0.2
+    assert all(row["hydrogen on-site production"] == 0.2 for row in records)
