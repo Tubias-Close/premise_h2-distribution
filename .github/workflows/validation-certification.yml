@@ -42,6 +42,9 @@ jobs:
           python -m pip install pytest pytest-instafail
           python -m pip install -e .
           python -m pip check
+      - name: Verify numerical runtime imports
+        run: |
+          python -c "import numpy as np; import pyarrow as pa; from premise import NewDatabase; assert pa.array(np.array([1.0])).to_pylist() == [1.0]; print(f'NumPy {np.__version__}, PyArrow {pa.__version__}')"
       - name: Certify ecoinvent 3.12, IAM interpolation, and every exporter
         env:
           IAM_FILES_KEY: ${{ secrets.IAM_FILES_KEY }}
@@ -111,6 +114,9 @@ jobs:
           python -m pip install pytest pytest-instafail
           python -m pip install -e .
           python -m pip check
+      - name: Verify numerical runtime imports
+        run: |
+          python -c "import numpy as np; import pyarrow as pa; from premise import NewDatabase; assert pa.array(np.array([1.0])).to_pylist() == [1.0]; print(f'NumPy {np.__version__}, PyArrow {pa.__version__}')"
       - name: Certify supported source/system-model case
         env:
           IAM_FILES_KEY: ${{ secrets.IAM_FILES_KEY }}
