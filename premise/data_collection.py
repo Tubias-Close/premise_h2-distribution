@@ -142,6 +142,31 @@ def get_metals_intensity_factors_data() -> xr.DataArray:
 
     filepath = Path(DATA_DIR / "metals" / "metals_db.csv")
     df = pd.read_csv(filepath)
+    from .metals_rules import MetalsConfigError, INTENSITY_UNITS
+
+    keys = ["metal", "origin_var", "year"]
+    df["year"] = pd.to_numeric(df["year"], errors="raise")
+    if not np.isfinite(df["year"]).all() or (df["year"] % 1 != 0).any():
+        raise MetalsConfigError("Metal intensity years must be finite integers.")
+    if df[keys + ["unit"]].isna().any().any() or df.duplicated(keys).any():
+        raise MetalsConfigError(
+            "Metal intensities require unique, complete metal/technology/year keys."
+        )
+    units = df.groupby("origin_var")["unit"].agg(set)
+    if any(len(values) != 1 or not values <= INTENSITY_UNITS for values in units):
+        raise MetalsConfigError("Metal intensities have unknown or inconsistent units.")
+    values = df[["mean", "median", "min", "max"]].apply(pd.to_numeric, errors="raise")
+    if (
+        not np.isfinite(values.to_numpy()).all()
+        or (values < 0).any().any()
+        or (values["median"] < values["min"]).any()
+        or (values["median"] > values["max"]).any()
+    ):
+        raise MetalsConfigError(
+            "Metal intensities must be finite, nonnegative, and have min <= median <= max."
+        )
+    df[values.columns] = values
+    source_years = df.groupby(["metal", "origin_var"])["year"].agg(["min", "max"])
     df = df.melt(
         id_vars=["metal", "year", "origin_var"],
         value_vars=["mean", "median", "min", "max"],
@@ -153,10 +178,21 @@ def get_metals_intensity_factors_data() -> xr.DataArray:
         .to_xarray()
     )
 
-    array = array.interpolate_na(dim="year", method="linear", fill_value="extrapolate")
+    # Interpolate only between observations. Endpoint filling supports array
+    # selection; consumers must check the per-series observation range before
+    # applying an intensity. A global year range is not evidence for every pair.
+    array = array.interpolate_na(dim="year", method="linear")
     array = array.bfill(dim="year")
     array = array.ffill(dim="year")
-    array = array.fillna(0)
+    # Absent metal/technology pairs remain missing; measured zero is meaningful.
+    array = array.assign_coords(
+        source_year_min=source_years["min"].to_xarray(),
+        source_year_max=source_years["max"].to_xarray(),
+        intensity_unit=(
+            "origin_var",
+            [next(iter(units.loc[v])) for v in array.origin_var.values],
+        ),
+    )
 
     return array
 
@@ -2106,7 +2142,12 @@ class IAMDataCollection:
                                 eff_arr.loc[{"variables": var}] / denom
                             )
                             # turn NaNs from division by 0 / missing into ones (neutral factor)
-                            eff_arr = eff_arr.fillna(1)
+                            # Normalize only this relative series. Filling the
+                            # whole array would turn missing absolute targets
+                            # into synthetic 100% efficiencies.
+                            eff_arr.loc[{"variables": var}] = eff_arr.loc[
+                                {"variables": var}
+                            ].fillna(1)
 
                 data[i]["efficiency"] = eff_arr
 
