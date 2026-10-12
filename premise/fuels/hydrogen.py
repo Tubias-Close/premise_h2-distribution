@@ -847,7 +847,7 @@ class HydrogenMixin:
                 "hydrogen_final_energy_ej_per_year",
                 "hydrogen_demand_t_per_year",
                 "hydrogen_demand_t_per_day",
-                # "demand_nodes",
+                "demand_nodes",
                 "demand_nodes_rounded_up",
                 "demand_node_type",
                 "hydrogen_demand_t_per_node_per_year",

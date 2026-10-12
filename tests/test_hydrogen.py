@@ -509,7 +509,13 @@ def test_plant_based_market_is_skipped_without_production_proxy(
     assert subsector in hydrogen.skipped_hydrogen_sector_markets
 
 
-def test_message_steel_uses_processed_h_dri_production_proxy():
+@pytest.mark.parametrize(
+    ("steel_production", "demand_nodes", "rounded_nodes"),
+    [(1.0, 2.0, 2), (0.6, 1.2, 2)],
+)
+def test_message_steel_uses_processed_h_dri_production_proxy(
+    steel_production, demand_nodes, rounded_nodes
+):
     hydrogen = HydrogenMixin()
     hydrogen.model = "message"
     hydrogen.scenario = "test-scenario"
@@ -522,7 +528,7 @@ def test_message_steel_uses_processed_h_dri_production_proxy():
         regions=["EUR", "World"],
         values=[
             [[0.004], [0.004]],
-            [[1.0], [1.0]],
+            [[steel_production], [steel_production]],
         ],
     )
     hydrogen.iam_data.data = hydrogen.iam_data.production_volumes
@@ -534,8 +540,12 @@ def test_message_steel_uses_processed_h_dri_production_proxy():
         hydrogen.hydrogen_demand_nodes["subsector"].eq("Steel")
     ].iloc[0]
     assert steel["demand_node_type"] == "steel_plants"
-    assert steel["activity_proxy_value"] == pytest.approx(1.0)
-    assert steel["demand_nodes"] == pytest.approx(2.0)
+    assert steel["activity_proxy_value"] == pytest.approx(steel_production)
+    assert steel["demand_nodes"] == pytest.approx(demand_nodes)
+    assert steel["demand_nodes_rounded_up"] == rounded_nodes
+    assert steel["hydrogen_demand_t_per_node_per_year"] == pytest.approx(
+        (0.004 * 1e9 / 120) / demand_nodes
+    )
     assert steel["distribution_status"] == "ok"
 
 
