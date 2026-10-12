@@ -23,10 +23,50 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  credentials:
+    name: Check certification credentials
+    runs-on: ubuntu-latest
+    outputs:
+      available: ${{ steps.check.outputs.available }}
+    steps:
+      - name: Check required repository secrets
+        id: check
+        shell: bash
+        env:
+          IAM_FILES_KEY: ${{ secrets.IAM_FILES_KEY }}
+          EI_USERNAME: ${{ secrets.EI_USERNAME }}
+          EI_PASSWORD: ${{ secrets.EI_PASSWORD }}
+        run: |
+          missing=()
+          for credential in IAM_FILES_KEY EI_USERNAME EI_PASSWORD; do
+            if [[ -z "${!credential}" ]]; then
+              missing+=("$credential")
+            fi
+          done
+
+          if (( ${#missing[@]} == 0 )); then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+            echo "Certification credentials are available." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          echo "available=false" >> "$GITHUB_OUTPUT"
+          message="Missing repository secrets: ${missing[*]}. Configure them to run certification."
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            echo "::error::$message"
+            echo "Certification could not start. $message" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+          echo "::notice::Certification skipped. $message"
+          echo "Certification skipped; no certification tests or profiling ran. $message" >> "$GITHUB_STEP_SUMMARY"
+
   nightly:
+    needs: credentials
     if: >-
-      github.event.schedule == '17 2 * * *' ||
-      (github.event_name == 'workflow_dispatch' && inputs.tier == 'nightly')
+      needs.credentials.outputs.available == 'true' &&
+      (github.event.schedule == '17 2 * * *' ||
+      (github.event_name == 'workflow_dispatch' && inputs.tier == 'nightly'))
     runs-on: ubuntu-latest
     timeout-minutes: 360
     steps:
@@ -46,6 +86,7 @@ jobs:
         run: |
           python -c "import numpy as np; import pyarrow as pa; from premise import NewDatabase; assert pa.array(np.array([1.0])).to_pylist() == [1.0]; print(f'NumPy {np.__version__}, PyArrow {pa.__version__}')"
       - name: Certify ecoinvent 3.12, IAM interpolation, and every exporter
+        id: certify
         env:
           IAM_FILES_KEY: ${{ secrets.IAM_FILES_KEY }}
           EI_USERNAME: ${{ secrets.EI_USERNAME }}
@@ -57,6 +98,8 @@ jobs:
           tests/test_process_ei312_conseq.py
           tests/test_process_interpolated_year.py
       - name: Profile certification warnings
+        id: profile
+        if: steps.certify.outcome == 'success'
         env:
           IAM_FILES_KEY: ${{ secrets.IAM_FILES_KEY }}
           PYTHONHASHSEED: "0"
@@ -73,6 +116,7 @@ jobs:
           --inventory-backend compact
           --output validation-profile.json
       - name: Reject unreviewed validation warnings
+        if: steps.profile.outcome == 'success'
         run: >-
           python benchmarks/check_validation_warnings.py
           --baseline tests/data/validation_warning_baselines.yaml
@@ -80,9 +124,11 @@ jobs:
           --case ecoinvent-3.12-cutoff-image-SSP2-M-2050
 
   full-matrix:
+    needs: credentials
     if: >-
-      github.event.schedule == '43 3 * * 0' ||
-      (github.event_name == 'workflow_dispatch' && inputs.tier == 'full-matrix')
+      needs.credentials.outputs.available == 'true' &&
+      (github.event.schedule == '43 3 * * 0' ||
+      (github.event_name == 'workflow_dispatch' && inputs.tier == 'full-matrix'))
     runs-on: ubuntu-latest
     timeout-minutes: 360
     strategy:
