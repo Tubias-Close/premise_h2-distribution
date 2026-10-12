@@ -810,6 +810,31 @@
     "title": "Hydrogen supply chains"
   },
   {
+    "old": "transform.html#sector-specific-hydrogen-markets",
+    "new": "methodology/fuels/hydrogen.html#sector-specific-hydrogen-markets",
+    "title": "Sector-specific hydrogen markets"
+  },
+  {
+    "old": "transform.html#id3",
+    "new": "methodology/fuels/hydrogen.html#demand-node-creation",
+    "title": "Demand-node assumptions"
+  },
+  {
+    "old": "transform.html#id5",
+    "new": "methodology/fuels/hydrogen.html#sector-market-creation-and-transport-shares",
+    "title": "Hydrogen end-use markets"
+  },
+  {
+    "old": "transform.html#id6",
+    "new": "methodology/fuels/hydrogen.html#sector-market-creation-and-transport-shares",
+    "title": "Distribution exchanges per kilogram of market output"
+  },
+  {
+    "old": "transform.html#id7",
+    "new": "methodology/fuels/hydrogen.html#customer-relinking",
+    "title": "Consumer-routing summary"
+  },
+  {
     "old": "transform.html#fuel-markets",
     "new": "methodology/fuels/markets.html",
     "title": "Fuel markets"
@@ -833,6 +858,11 @@
     "old": "transform.html#regionalization",
     "new": "methodology/regionalization.html",
     "title": "Regionalization"
+  },
+  {
+    "old": "transform.html#decision-tree",
+    "new": "development/supplier-selection.html",
+    "title": "Decision tree for processing datasets"
   },
   {
     "old": "transform.html#decision-is-the-exchange-in-cache",
