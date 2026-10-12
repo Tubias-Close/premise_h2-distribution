@@ -102,12 +102,8 @@ HYDROGEN_FINAL_ENERGY_RULES = {
     },
 }
 
-STEEL_PLANT_SIZE_MT_PER_YEAR = (
-    0.5  # https://doi.org/10.1038/s41586-023-06486-7
-)
-CEMENT_PLANT_SIZE_MT_PER_YEAR = (
-    2.4  # https://doi.org/10.1038/s41597-023-02599-w
-)
+STEEL_PLANT_SIZE_MT_PER_YEAR = 0.5  # https://doi.org/10.1038/s41586-023-06486-7
+CEMENT_PLANT_SIZE_MT_PER_YEAR = 2.4  # https://doi.org/10.1038/s41597-023-02599-w
 CEMENT_CAPACITY_FACTOR = 0.55  # https://doi.org/10.1038/s41597-023-02599-w
 CHEMICAL_PLANT_H2_USE_T_PER_YEAR = 60_300  # https://observatory.clean-hydrogen.europa.eu/sites/default/files/2023-05/Chapter-2-FCHO-Market-2022-Final.pdf
 OTHER_DEMAND_NODE_H2_USE_T_PER_YEAR = 1_000  # representative node for other indudstrial consumers such as glass, pulp&paper 10.1016/j.ecmx.2022.100336, 10.1016/j.gerr.2026.100174, 10.1016/j.fuel.2024.133576
@@ -120,12 +116,12 @@ PASSENGER_CARS_PER_STATION_PER_DAY = (
 FREIGHT_VEHICLES_PER_STATION_PER_DAY = (
     400  # https://doi.org/10.1016/j.apenergy.2019.04.064.
 )
-PASSENGER_CAR_REFUELING_INTERVAL_DAYS = (
-    7  # https://doi.org/10.1038/jes.2012.128
-)
+PASSENGER_CAR_REFUELING_INTERVAL_DAYS = 7  # https://doi.org/10.1038/jes.2012.128
 FREIGHT_VEHICLE_REFUELING_INTERVAL_DAYS = 3.5  # https://www.hydrogen.energy.gov/docs/hydrogenprogramlibraries/pdfs/19006_hydrogen_class8_long_haul_truck_targets.pdf
 BILLION_KM_TO_KM = 1_000_000_000
-VEHICLE_OCCUPANCY = 1.5  # https://www.mobilitaet-in-deutschland.de/pdf/MiD2023_Ergebnisbericht.pdf
+VEHICLE_OCCUPANCY = (
+    1.5  # https://www.mobilitaet-in-deutschland.de/pdf/MiD2023_Ergebnisbericht.pdf
+)
 FREIGHT_LOAD = 15  # http://theicct.org/EU-HDV-fuel-efficiency-tech-2020-2030
 HYDROGEN_END_USE_MARKETS = hydrogen_sector_markets(hydrogen_consumer_routing)
 HYDROGEN_DISTRIBUTION_MODES = sorted(
@@ -138,16 +134,12 @@ HYDROGEN_DISTRIBUTION_MODES = sorted(
 HYDROGEN_TRANSPORT_ACTIVITIES = {
     "compressed_gaseous_truck": {
         "name": ("transport, hydrogen, gaseous, lorry, " "unspecified"),
-        "reference product": (
-            "transport, hydrogen, gaseous, lorry, " "unspecified"
-        ),
+        "reference product": ("transport, hydrogen, gaseous, lorry, " "unspecified"),
         "unit": "ton kilometer",
     },
     "liquid_hydrogen_truck": {
         "name": ("transport, hydrogen, liquid, lorry, " "unspecified"),
-        "reference product": (
-            "transport, hydrogen, liquid, lorry, " "unspecified"
-        ),
+        "reference product": ("transport, hydrogen, liquid, lorry, " "unspecified"),
         "unit": "ton kilometer",
     },
     "compressed_gaseous_pipeline": {
@@ -157,23 +149,19 @@ HYDROGEN_TRANSPORT_ACTIVITIES = {
     },
     "liquid_ammonia_ship": {
         "name": (
-            "transport, freight, sea, tanker for liquefied ammonia, "
-            "ammonia and mdo"
+            "transport, freight, sea, tanker for liquefied ammonia, " "ammonia and mdo"
         ),
         "reference product": (
-            "transport, freight, sea, tanker for liquefied ammonia, "
-            "ammonia and mdo"
+            "transport, freight, sea, tanker for liquefied ammonia, " "ammonia and mdo"
         ),
         "unit": "ton kilometer",
     },
     "liquid_hydrogen_ship": {
         "name": (
-            "transport, freight, sea, tanker for liquefied hydrogen, "
-            "heavy fuel oil"
+            "transport, freight, sea, tanker for liquefied hydrogen, " "heavy fuel oil"
         ),
         "reference product": (
-            "transport, freight, sea, tanker for liquefied hydrogen, "
-            "heavy fuel oil"
+            "transport, freight, sea, tanker for liquefied hydrogen, " "heavy fuel oil"
         ),
         "unit": "ton kilometer",
     },
@@ -279,10 +267,7 @@ class HydrogenMixin:
     # Consumer relinking workflow: match a dataset to sector rules by name/product/unit text.
     def _hydrogen_sector_name_matches_consumer(self, dataset, sector_rules):
         text = self._hydrogen_consumer_text(dataset)
-        return any(
-            keyword in text
-            for keyword in sector_rules.get("name_contains", [])
-        )
+        return any(keyword in text for keyword in sector_rules.get("name_contains", []))
 
     # Consumer relinking workflow: match a dataset to sector rules by ISIC classification.
     def _hydrogen_sector_isic_matches_consumer(self, dataset, sector_rules):
@@ -293,9 +278,7 @@ class HydrogenMixin:
 
     # Consumer relinking workflow: assign one hydrogen end-use sector or return ambiguity.
     def _classify_hydrogen_consumer_sector(self, dataset):
-        return classify_hydrogen_consumer_sector(
-            dataset, hydrogen_consumer_routing
-        )
+        return classify_hydrogen_consumer_sector(dataset, hydrogen_consumer_routing)
 
     # Consumer relinking workflow: format unresolved or skipped relinking cases for logs.
     @staticmethod
@@ -377,19 +360,13 @@ class HydrogenMixin:
     # Sector-market workflow: find IAM regions that satisfy the demand and
     # logistics prerequisites for market construction.
     def _eligible_hydrogen_sector_market_regions(self):
-        final_energy = self._get_hydrogen_final_energy_by_subsector(
-            year=self.year
-        )
+        final_energy = self._get_hydrogen_final_energy_by_subsector(year=self.year)
         if final_energy.empty:
-            return {
-                market_key: set() for market_key in HYDROGEN_END_USE_MARKETS
-            }
+            return {market_key: set() for market_key in HYDROGEN_END_USE_MARKETS}
 
         required_columns = {"region", "sector", "subsector"}
         if not required_columns.issubset(final_energy.columns):
-            return {
-                market_key: set() for market_key in HYDROGEN_END_USE_MARKETS
-            }
+            return {market_key: set() for market_key in HYDROGEN_END_USE_MARKETS}
 
         candidate_regions = {
             region
@@ -467,18 +444,14 @@ class HydrogenMixin:
             ):
                 continue
             if not any(
-                is_hydrogen_market_exchange(
-                    exchange, hydrogen_consumer_routing
-                )
+                is_hydrogen_market_exchange(exchange, hydrogen_consumer_routing)
                 for exchange in dataset.get("exchanges", [])
             ):
                 continue
             sector, _ = self._classify_hydrogen_consumer_sector(dataset)
             if sector is None:
                 continue
-            region = self._hydrogen_consumer_iam_region(
-                dataset.get("location")
-            )
+            region = self._hydrogen_consumer_iam_region(dataset.get("location"))
             if region is not None:
                 regions[sector].add(region)
         return regions
@@ -562,8 +535,7 @@ class HydrogenMixin:
             )
 
         return (
-            self._resolve_hydrogen_sector_market_location(sector, location)
-            is not None
+            self._resolve_hydrogen_sector_market_location(sector, location) is not None
         )
 
     # Consumer relinking workflow: synchronize generic and sector H2 market links.
@@ -587,9 +559,7 @@ class HydrogenMixin:
             hydrogen_exchanges = [
                 exchange
                 for exchange in dataset.get("exchanges", [])
-                if is_hydrogen_market_exchange(
-                    exchange, hydrogen_consumer_routing
-                )
+                if is_hydrogen_market_exchange(exchange, hydrogen_consumer_routing)
             ]
             if not hydrogen_exchanges:
                 continue
@@ -621,10 +591,8 @@ class HydrogenMixin:
                 reason = "kept on generic hydrogen market"
 
                 if not keep_general and sector is not None:
-                    target_location = (
-                        self._resolve_hydrogen_sector_market_location(
-                            sector, dataset.get("location")
-                        )
+                    target_location = self._resolve_hydrogen_sector_market_location(
+                        sector, dataset.get("location")
                     )
                     if target_location is not None:
                         new_market = HYDROGEN_END_USE_MARKETS[sector]
@@ -636,11 +604,9 @@ class HydrogenMixin:
                             reason = "cross-region correction"
 
                 if target_location is None:
-                    target_location = (
-                        self._resolve_generic_hydrogen_market_location(
-                            dataset.get("location"),
-                            current_location=old_location,
-                        )
+                    target_location = self._resolve_generic_hydrogen_market_location(
+                        dataset.get("location"),
+                        current_location=old_location,
                     )
                     if target_location is None and linked_sector == "generic":
                         # Synthetic unit fixtures and partially prepared databases
@@ -663,15 +629,10 @@ class HydrogenMixin:
                     and not keep_general
                 ):
                     self.skipped_hydrogen_consumers.append(
-                        self._hydrogen_consumer_warning(
-                            dataset, exchange, [sector]
-                        )
+                        self._hydrogen_consumer_warning(dataset, exchange, [sector])
                     )
 
-                if (
-                    old_market == new_market
-                    and old_location == target_location
-                ):
+                if old_market == new_market and old_location == target_location:
                     continue
                 self.matched_hydrogen_consumers.append(
                     self._matched_hydrogen_consumer_record(
@@ -739,9 +700,7 @@ class HydrogenMixin:
                 }
             )
 
-        if top_level == "Transport" or str(variable).startswith(
-            "Transportation"
-        ):
+        if top_level == "Transport" or str(variable).startswith("Transportation"):
             return pd.Series({"sector": "Transport", "subsector": "Transport"})
 
         if top_level == "Industry":
@@ -753,9 +712,7 @@ class HydrogenMixin:
                 subsector = parts[1]
             else:
                 subsector = "Industry"
-            return pd.Series(
-                {"sector": "Industrial processes", "subsector": subsector}
-            )
+            return pd.Series({"sector": "Industrial processes", "subsector": subsector})
 
         if top_level == "CDR":
             return pd.Series(
@@ -777,8 +734,7 @@ class HydrogenMixin:
     @staticmethod
     def _sum_hydrogen_final_energy_coordinates(final_energy, variables):
         available = {
-            str(variable)
-            for variable in final_energy.coords["variables"].values
+            str(variable) for variable in final_energy.coords["variables"].values
         }
         present = [variable for variable in variables if variable in available]
         if not present:
@@ -826,8 +782,7 @@ class HydrogenMixin:
             ]
         ).lower()
         return any(
-            token in variable_text
-            for token in ["hydrogen", "fcev", "fuel cell"]
+            token in variable_text for token in ["hydrogen", "fcev", "fuel cell"]
         )
 
     # Demand-node workflow: reject transport variables that refer to non-hydrogen fuels.
@@ -868,9 +823,8 @@ class HydrogenMixin:
                 "fuel cell vehicle",
             ]
         )
-        return (
-            is_hydrogen
-            and not HydrogenMixin._contains_other_transport_fuel(variable)
+        return is_hydrogen and not HydrogenMixin._contains_other_transport_fuel(
+            variable
         )
 
     # Demand-node workflow: round positive node counts up while preserving empty/zero demand.
@@ -951,9 +905,7 @@ class HydrogenMixin:
             table = table.loc[table["hydrogen_final_energy_ej_per_year"] > 0]
             if table.empty:
                 return self._empty_hydrogen_demand_nodes()
-            table = table.join(
-                table["variables"].apply(self._hydrogen_end_use_group)
-            )
+            table = table.join(table["variables"].apply(self._hydrogen_end_use_group))
             table["source_variables"] = table["variables"].astype(str)
         else:
             direct_hydrogen_variables = set(variables)
@@ -1032,14 +984,10 @@ class HydrogenMixin:
                 reserved.add(parent)
 
                 parent_array, parent_present = (
-                    self._sum_hydrogen_final_energy_coordinates(
-                        final_energy, (parent,)
-                    )
+                    self._sum_hydrogen_final_energy_coordinates(final_energy, (parent,))
                 )
                 child_array, child_present = (
-                    self._sum_hydrogen_final_energy_coordinates(
-                        final_energy, children
-                    )
+                    self._sum_hydrogen_final_energy_coordinates(final_energy, children)
                 )
                 if parent_array is None:
                     continue
@@ -1066,10 +1014,8 @@ class HydrogenMixin:
             )
 
             other_variables = sorted(direct_hydrogen_variables - reserved)
-            other_array, other_present = (
-                self._sum_hydrogen_final_energy_coordinates(
-                    final_energy, other_variables
-                )
+            other_array, other_present = self._sum_hydrogen_final_energy_coordinates(
+                final_energy, other_variables
             )
             self._append_hydrogen_final_energy_rows(
                 tables,
@@ -1099,9 +1045,7 @@ class HydrogenMixin:
                 source_variables=(
                     "source_variables",
                     lambda values: "; ".join(
-                        value
-                        for value in sorted(set(map(str, values)))
-                        if value
+                        value for value in sorted(set(map(str, values))) if value
                     ),
                 ),
             )
@@ -1204,9 +1148,7 @@ class HydrogenMixin:
         mask = demand["subsector"] == "Cement"
         demand.loc[mask, "demand_node_type"] = "cement_plants"
         demand.loc[mask, "activity_proxy_unit"] = "Mt cement/yr"
-        demand.loc[mask, "availability_days_per_year"] = (
-            365 * CEMENT_CAPACITY_FACTOR
-        )
+        demand.loc[mask, "availability_days_per_year"] = 365 * CEMENT_CAPACITY_FACTOR
 
         demand = demand.merge(
             cement_production,
@@ -1263,9 +1205,7 @@ class HydrogenMixin:
                 "station_throughput_vehicles_per_day": (
                     PASSENGER_CARS_PER_STATION_PER_DAY
                 ),
-                "refueling_interval_days": (
-                    PASSENGER_CAR_REFUELING_INTERVAL_DAYS
-                ),
+                "refueling_interval_days": (PASSENGER_CAR_REFUELING_INTERVAL_DAYS),
                 "service_divisor": VEHICLE_OCCUPANCY,
             },
             "road_freight": {
@@ -1275,9 +1215,7 @@ class HydrogenMixin:
                 "station_throughput_vehicles_per_day": (
                     FREIGHT_VEHICLES_PER_STATION_PER_DAY
                 ),
-                "refueling_interval_days": (
-                    FREIGHT_VEHICLE_REFUELING_INTERVAL_DAYS
-                ),
+                "refueling_interval_days": (FREIGHT_VEHICLE_REFUELING_INTERVAL_DAYS),
                 "service_divisor": FREIGHT_LOAD,
             },
         }
@@ -1288,9 +1226,7 @@ class HydrogenMixin:
             vehicle_assumptions = assumptions[vehicle_class]
 
             for vehicle_type, mapping in transport_mapping.items():
-                if not self._is_hydrogen_vehicle_mapping(
-                    vehicle_type, mapping
-                ):
+                if not self._is_hydrogen_vehicle_mapping(vehicle_type, mapping):
                     continue
 
                 service_variables = self._as_list(
@@ -1299,11 +1235,8 @@ class HydrogenMixin:
                 available_variables = [
                     variable
                     for variable in service_variables
-                    if variable
-                    in self.iam_data.data.coords["variables"].values
-                    and self._is_direct_hydrogen_transport_service_variable(
-                        variable
-                    )
+                    if variable in self.iam_data.data.coords["variables"].values
+                    and self._is_direct_hydrogen_transport_service_variable(variable)
                 ]
                 if not available_variables:
                     continue
@@ -1317,9 +1250,7 @@ class HydrogenMixin:
                 )
                 service["vehicle_class"] = vehicle_class
                 service["vehicle_type"] = vehicle_type
-                service["transport_service_variables"] = "; ".join(
-                    available_variables
-                )
+                service["transport_service_variables"] = "; ".join(available_variables)
                 service["hydrogen_transport_service_km_per_year"] = (
                     service["transport_service_billion_km_per_year"]
                     * BILLION_KM_TO_KM
@@ -1335,9 +1266,7 @@ class HydrogenMixin:
                 )
                 service["demand_nodes"] = (
                     service["refuelings_per_day"]
-                    / vehicle_assumptions[
-                        "station_throughput_vehicles_per_day"
-                    ]
+                    / vehicle_assumptions["station_throughput_vehicles_per_day"]
                 )
                 rows.append(service)
 
@@ -1395,9 +1324,7 @@ class HydrogenMixin:
         demand.loc[mask, "activity_proxy_value"] = demand.loc[
             mask, "activity_proxy_value_transport"
         ]
-        demand.loc[mask, "demand_nodes"] = demand.loc[
-            mask, "demand_nodes_transport"
-        ]
+        demand.loc[mask, "demand_nodes"] = demand.loc[mask, "demand_nodes_transport"]
         demand.loc[mask, "source_variables"] = (
             demand.loc[mask, "source_variables"].fillna("")
             + "; "
@@ -1446,8 +1373,7 @@ class HydrogenMixin:
         demand["validation_status"] = "not_checked"
         checked = demand["validation_relative_difference"].notna()
         demand.loc[checked, "validation_status"] = np.where(
-            demand.loc[checked, "validation_relative_difference"].abs()
-            <= 1e-6,
+            demand.loc[checked, "validation_relative_difference"].abs() <= 1e-6,
             "ok",
             "world_sum_mismatch",
         )
@@ -1484,9 +1410,7 @@ class HydrogenMixin:
         )
 
         for rule in rules:
-            if not self._distribution_rule_matches_row(
-                row, rule.get("match", {})
-            ):
+            if not self._distribution_rule_matches_row(row, rule.get("match", {})):
                 continue
 
             basis = rule.get("basis")
@@ -1517,9 +1441,7 @@ class HydrogenMixin:
         for index, row in demand.iterrows():
             rule = self._select_hydrogen_distribution_rule(row)
             if rule is None:
-                demand_per_node = row.get(
-                    "hydrogen_demand_t_per_node_per_year", np.nan
-                )
+                demand_per_node = row.get("hydrogen_demand_t_per_node_per_year", np.nan)
                 if pd.isna(demand_per_node) or demand_per_node <= 0:
                     continue
 
@@ -1533,9 +1455,7 @@ class HydrogenMixin:
 
             rule_name = rule.get("name", "unnamed")
             configured_shares = rule.get("shares", {})
-            unknown_modes = set(configured_shares) - set(
-                HYDROGEN_TRANSPORT_ACTIVITIES
-            )
+            unknown_modes = set(configured_shares) - set(HYDROGEN_TRANSPORT_ACTIVITIES)
             if unknown_modes:
                 raise ValueError(
                     f"Hydrogen distribution rule '{rule_name}' references "
@@ -1631,9 +1551,7 @@ class HydrogenMixin:
             "calculation_method",
         ] = "production_volume_based"
         demand.loc[
-            demand["demand_node_type"].isin(
-                ["chemical_plants", "other_demand_nodes"]
-            ),
+            demand["demand_node_type"].isin(["chemical_plants", "other_demand_nodes"]),
             "calculation_method",
         ] = "final_energy_based"
         demand.loc[
@@ -1674,9 +1592,7 @@ class HydrogenMixin:
             reference_product="hydrogen, gaseous, low pressure",
             unit="kilogram",
             mapping={
-                k: v
-                for k, v in self.fuel_map.items()
-                if k.startswith("hydrogen")
+                k: v for k, v in self.fuel_map.items() if k.startswith("hydrogen")
             },
             system_model=self.system_model,
             production_volumes=self.iam_data.production_volumes,
@@ -1686,12 +1602,8 @@ class HydrogenMixin:
 
     # Sector-market workflow: create consumer-backed end-use markets idempotently.
     def _generate_sector_specific_hydrogen_markets(self, hydrogen_map):
-        eligible_market_regions = (
-            self._eligible_hydrogen_sector_market_regions()
-        )
-        consumer_market_regions = (
-            self._consumer_backed_hydrogen_sector_market_regions()
-        )
+        eligible_market_regions = self._eligible_hydrogen_sector_market_regions()
+        consumer_market_regions = self._consumer_backed_hydrogen_sector_market_regions()
         desired_market_regions = {
             market: set(eligible_market_regions.get(market, set()))
             & set(consumer_market_regions.get(market, set()))
@@ -1717,9 +1629,7 @@ class HydrogenMixin:
             - set(consumer_market_regions.get(market, set()))
         }
 
-        existing_market_regions = (
-            self._existing_hydrogen_sector_market_regions()
-        )
+        existing_market_regions = self._existing_hydrogen_sector_market_regions()
 
         for market, market_name in HYDROGEN_END_USE_MARKETS.items():
             missing_regions = set(desired_market_regions[market]) - set(
@@ -1745,28 +1655,20 @@ class HydrogenMixin:
                 create_world_market=False,
             )
 
-        self._refresh_hydrogen_sector_market_diagnostics(
-            desired_market_regions
-        )
+        self._refresh_hydrogen_sector_market_diagnostics(desired_market_regions)
 
-    def _refresh_hydrogen_sector_market_diagnostics(
-        self, desired_market_regions
-    ):
+    def _refresh_hydrogen_sector_market_diagnostics(self, desired_market_regions):
         """Refresh generated, skipped, and failed-creation diagnostics."""
 
         actual = self._existing_hydrogen_sector_market_regions()
         self.generated_hydrogen_sector_market_regions = {
-            market: sorted(regions)
-            for market, regions in actual.items()
-            if regions
+            market: sorted(regions) for market, regions in actual.items() if regions
         }
         self.generated_hydrogen_sector_markets = [
             market for market in HYDROGEN_END_USE_MARKETS if actual.get(market)
         ]
         self.uncreated_eligible_hydrogen_sector_market_regions = {
-            market: sorted(
-                set(desired_market_regions.get(market, set())) - regions
-            )
+            market: sorted(set(desired_market_regions.get(market, set())) - regions)
             for market, regions in actual.items()
             if set(desired_market_regions.get(market, set())) - regions
         }
@@ -1797,9 +1699,7 @@ class HydrogenMixin:
                 seen.add(identity)
         if duplicate_ids:
             self.database = [
-                dataset
-                for dataset in self.database
-                if id(dataset) not in duplicate_ids
+                dataset for dataset in self.database if id(dataset) not in duplicate_ids
             ]
         return len(duplicate_ids)
 
@@ -1833,9 +1733,7 @@ class HydrogenMixin:
         }
         if orphan_ids:
             self.database = [
-                dataset
-                for dataset in self.database
-                if id(dataset) not in orphan_ids
+                dataset for dataset in self.database if id(dataset) not in orphan_ids
             ]
         return len(orphan_ids)
 
@@ -1865,9 +1763,7 @@ class HydrogenMixin:
         self.cache = {}
 
         eligible = self._eligible_hydrogen_sector_market_regions()
-        consumer_backed = (
-            self._consumer_backed_hydrogen_sector_market_regions()
-        )
+        consumer_backed = self._consumer_backed_hydrogen_sector_market_regions()
         desired = {
             market: set(eligible.get(market, set()))
             & set(consumer_backed.get(market, set()))
@@ -1932,19 +1828,13 @@ class HydrogenMixin:
                 variable=technology,
                 location=dataset["location"],
             )
-            new_energy_use = max(
-                scaling_factor * initial_energy_use, floor_value
-            )
+            new_energy_use = max(scaling_factor * initial_energy_use, floor_value)
         elif "electrolysis" in technology:
             new_energy_use, min_energy_use, max_energy_use = (
-                adjust_electrolysis_electricity_requirement(
-                    self.year, efficiency
-                )
+                adjust_electrolysis_electricity_requirement(self.year, efficiency)
             )
             scaling_factor = (
-                new_energy_use / initial_energy_use
-                if initial_energy_use
-                else 1
+                new_energy_use / initial_energy_use if initial_energy_use else 1
             )
         else:
             scaling_factor = 1
@@ -1961,15 +1851,11 @@ class HydrogenMixin:
             exc["uncertainty type"] = 5
             exc["loc"] = exc["amount"]
             if min_energy_use:
-                exc["minimum"] = exc["amount"] * (
-                    min_energy_use / new_energy_use
-                )
+                exc["minimum"] = exc["amount"] * (min_energy_use / new_energy_use)
             else:
                 exc["minimum"] = exc["loc"] * 0.9
             if max_energy_use:
-                exc["maximum"] = exc["amount"] * (
-                    max_energy_use / new_energy_use
-                )
+                exc["maximum"] = exc["amount"] * (max_energy_use / new_energy_use)
             else:
                 exc["maximum"] = exc["loc"] * 1.1
 
@@ -1984,8 +1870,7 @@ class HydrogenMixin:
         ]
 
         hydrogen_distribution_map = {
-            k: [ws.get_one(self.database, ws.contains("name", k))]
-            for k in keywords
+            k: [ws.get_one(self.database, ws.contains("name", k))] for k in keywords
         }
 
         self.process_and_add_activities(
@@ -2004,9 +1889,7 @@ class HydrogenMixin:
                 ws.get_one(
                     self.database,
                     ws.equals("name", activity["name"]),
-                    ws.equals(
-                        "reference product", activity["reference product"]
-                    ),
+                    ws.equals("reference product", activity["reference product"]),
                     ws.equals("unit", activity["unit"]),
                 )
             ]
@@ -2088,8 +1971,7 @@ class HydrogenMixin:
         for dataset in self.database:
             if (
                 dataset.get("name") != activity["name"]
-                or dataset.get("reference product")
-                != activity["reference product"]
+                or dataset.get("reference product") != activity["reference product"]
             ):
                 continue
             emission = sum(
@@ -2137,9 +2019,7 @@ class HydrogenMixin:
                 ws.get_one(
                     self.database,
                     ws.equals("name", activity["name"]),
-                    ws.equals(
-                        "reference product", activity["reference product"]
-                    ),
+                    ws.equals("reference product", activity["reference product"]),
                 )
             ]
             for conversion, activity in HYDROGEN_CONVERSION_ACTIVITIES.items()
@@ -2172,9 +2052,7 @@ class HydrogenMixin:
 
     # Sector-market transport workflow: find database datasets for a configured transport mode.
     def _hydrogen_transport_supplier(self, activity):
-        target_name = self._normalize_hydrogen_transport_label(
-            activity["name"]
-        )
+        target_name = self._normalize_hydrogen_transport_label(activity["name"])
         target_product = self._normalize_hydrogen_transport_label(
             activity["reference product"]
         )
@@ -2182,11 +2060,8 @@ class HydrogenMixin:
         matches = [
             dataset
             for dataset in self.database
-            if self._normalize_hydrogen_transport_label(dataset["name"])
-            == target_name
-            and self._normalize_hydrogen_transport_label(
-                dataset["reference product"]
-            )
+            if self._normalize_hydrogen_transport_label(dataset["name"]) == target_name
+            and self._normalize_hydrogen_transport_label(dataset["reference product"])
             == target_product
             and dataset["unit"] == activity["unit"]
         ]
@@ -2299,9 +2174,7 @@ class HydrogenMixin:
         for mode in HYDROGEN_TRANSPORT_ACTIVITIES:
             if mode not in rows:
                 continue
-            shares[mode] = float(
-                (rows[mode].fillna(0) * weights).sum() / weights.sum()
-            )
+            shares[mode] = float((rows[mode].fillna(0) * weights).sum() / weights.sum())
 
         return shares
 
@@ -2336,13 +2209,9 @@ class HydrogenMixin:
             if share > 0:
                 for conversion in conversions:
                     amount_per_kg_hydrogen = (
-                        HYDROGEN_CONVERSION_AMOUNTS_PER_KG_HYDROGEN.get(
-                            conversion, 1
-                        )
+                        HYDROGEN_CONVERSION_AMOUNTS_PER_KG_HYDROGEN.get(conversion, 1)
                     )
-                    conversion_amounts[conversion] += (
-                        share * amount_per_kg_hydrogen
-                    )
+                    conversion_amounts[conversion] += share * amount_per_kg_hydrogen
         return dict(conversion_amounts)
 
     # Sector-market transport workflow: attach configured transport inputs to sector markets.
@@ -2354,9 +2223,7 @@ class HydrogenMixin:
                 continue
 
             activity = HYDROGEN_TRANSPORT_ACTIVITIES[mode]
-            amount = self._hydrogen_transport_amount_for_sector_market(
-                mode, share
-            )
+            amount = self._hydrogen_transport_amount_for_sector_market(mode, share)
 
             if mode == "compressed_gaseous_pipeline":
                 dataset["exchanges"].append(
@@ -2377,9 +2244,7 @@ class HydrogenMixin:
                 )
             )
 
-        conversion_amounts = (
-            self._hydrogen_conversion_amounts_for_sector_market(shares)
-        )
+        conversion_amounts = self._hydrogen_conversion_amounts_for_sector_market(shares)
         for conversion, amount in conversion_amounts.items():
             supplier = self._select_hydrogen_conversion_supplier(
                 conversion, dataset["location"]

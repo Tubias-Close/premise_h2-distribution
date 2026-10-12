@@ -24,29 +24,20 @@ on:
 jobs:
   clean:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
-      - uses: actions/checkout@v2
-
-      - name: Black formatting
-        uses: lgeiger/black-action@v1.0.1
+      - uses: actions/checkout@v4
         with:
-          args: "./"
-
-
-      - name: Check for modified files
-        id: git-check
-        run: echo ::set-output name=modified::$(if git diff-index --quiet HEAD --; then echo "false"; else echo "true"; fi)
-
-      - name: Push changes
-        if: steps.git-check.outputs.modified == 'true'
-        run: |
-          git config --global user.email "r_s@me.com"
-          git config --global user.name "romainsacchi"
-          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/$GITHUB_REPOSITORY
-          git checkout $GITHUB_HEAD_REF
-          git commit -am "Black reformating"
-          git push
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Black
+        run: python -m pip install black==26.5.1
+      - name: Check Black formatting
+        run: python -m black --check --diff .
 
   build:
     runs-on: ${{matrix.os}}

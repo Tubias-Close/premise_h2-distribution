@@ -7,7 +7,6 @@ from pathlib import Path
 import pytest
 import yaml
 
-
 REQUIRED_SECRETS = ("IAM_FILES_KEY", "EI_USERNAME", "EI_PASSWORD")
 MISSING_COMBINATIONS = [
     missing

@@ -2,13 +2,7 @@ from pathlib import Path
 
 import yaml
 
-
-MAPPING = (
-    Path(__file__).parents[1]
-    / "premise"
-    / "iam_variables_mapping"
-    / "steel.yaml"
-)
+MAPPING = Path(__file__).parents[1] / "premise" / "iam_variables_mapping" / "steel.yaml"
 FINAL_ENERGY_MAPPING = (
     Path(__file__).parents[1]
     / "premise"
@@ -45,6 +39,7 @@ def test_message_dri_routes_do_not_reuse_aggregate_energy_inputs():
 def test_tiam_h_dri_hydrogen_uses_preprocessed_final_energy_variable():
     mapping = yaml.safe_load(FINAL_ENERGY_MAPPING.read_text(encoding="utf-8"))
 
-    assert mapping["Industry - Steel - H-DRI/EAF - H2"]["iam_aliases"][
-        "tiam-ucl"
-    ] == "Final Energy|Production|Steel|Secondary|DRH2 and EAF|Hydrogen"
+    assert (
+        mapping["Industry - Steel - H-DRI/EAF - H2"]["iam_aliases"]["tiam-ucl"]
+        == "Final Energy|Production|Steel|Secondary|DRH2 and EAF|Hydrogen"
+    )
