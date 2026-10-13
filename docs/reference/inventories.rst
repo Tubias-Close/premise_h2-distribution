@@ -93,11 +93,17 @@ relinked to the corresponding IAM region before the sector-specific markets are
 created. Generic hydrogen inputs used to replenish logistics or conversion
 losses are normalized to the exact IAM-region generic market where available.
 Regasification leakage receives an equal regional generic-market make-up input,
-without duplication on rerun. Liquid-ammonia transport adds ``1 / 0.175`` kilograms of ``liquid
-ammonia production`` and ``7.67`` kilograms of ``ammonia cracking`` per
+without duplication on rerun. Liquid-ammonia transport adds ``1 / 0.175`` units of ``liquid
+ammonia production`` and ``7.67`` units of ``ammonia cracking`` per
 kilogram of hydrogen assigned to that distribution mode. These auxiliary loss
 and conversion inputs leave the one-kilogram hydrogen production-mix input to
 each market unchanged.
+
+The conversion inventories use reference unit ``unit``. Their source fields,
+exchange comments, physical-basis qualifications and unresolved citations are
+consolidated in :ref:`hydrogen-distribution-inventory-sources`. For the node
+and distance assumptions see :ref:`hydrogen-distribution-references`; for a
+summary of missing or weak support see :ref:`hydrogen-distribution-evidence-gaps`.
 
 See :ref:`sector-specific-hydrogen-markets` for the complete workflow from IAM
 demand and demand-node estimation through the decision tree, market construction,
