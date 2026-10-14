@@ -14,9 +14,9 @@ Scope and outputs
 -------------------
 
 Within the ``fuels`` update, Premise regionalizes hydrogen production and
-builds regional gaseous low-pressure hydrogen markets per kilogram. Imported
-supply-route variants describe conditioning and delivery options; their
-availability is distinct from the route used by a generated market.
+builds regional gaseous low-pressure hydrogen markets per kilogram. These
+markets combine the hydrogen production mix with transport and conditioning
+services. Sector-specific markets use delivery mixes tailored to their end uses.
 
 .. figure:: /_static/process-diagrams/fuels-hydrogen.svg
    :class: process-diagram
@@ -45,73 +45,24 @@ The energy-floor limitation below qualifies the IAM branch.
 Hydrogen supply chains
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-The imported hydrogen supply-route catalogue contains variants that differ by:
+Hydrogen production, delivery and conditioning are represented by separate
+activities linked through a hydrogen market. Each kilogram of market output
+receives one kilogram from the production mix, together with the services
+needed for delivery.
 
-* the transport mode: truck, hydrogen pipeline, re-assigned CNG pipeline, ship,
-* the distance: 500 km, 2000 km
-* the state of the hydrogen: gaseous, liquid, liquid organic compound,
-* the hydrogen production route: electrolysis, SMR, biomass gasifier (coal, woody biomass)
+The general hydrogen market includes one kilogram of pipeline distribution
+service per kilogram of hydrogen. Sector-specific markets combine pipeline,
+truck, ship and on-site supply according to their regional demand and
+distribution rules. Compression, liquefaction, regasification, ammonia
+synthesis and cracking are added where the selected delivery mode requires
+them. The :ref:`sector-specific-hydrogen-markets` section describes these
+shares, distances and service quantities.
 
-The supply chain is built in stages::
-
-    Production -> conditioning -> transport and storage -> delivered hydrogen
-                      |                  |
-                   energy use        losses and energy use
-
-Compare routes at the same delivery state and pressure. Transport losses
-increase upstream hydrogen production per kilogram delivered; compression and
-liquefaction add their own energy requirements. A plant-gate production score
-therefore cannot validate the delivered route by itself.
-
-Boil-off loss values during shipping are from `Hank <https://pubs.rsc.org/en/content/articlelanding/2020/se/d0se00067a>`__ et al, 2020.
-Losses when transporting H2 via re-assigned CNG pipelines are from `Cerniauskas <https://doi.org/10.1016/j.ijhydene.2020.02.121>`__ et al, 2020.
-Losses along the pipeline are from `Schori <https://treeze.ch/fileadmin/user_upload/downloads/PublicLCI/Schori_2012_NaturalGas.pdf>`__ et al, 2012., but to be considered conservative, as those
-are initially for natural gas (and hydrogen has a higher potential for leaking).
-
- ========================== ================= ======== ======= ============== =============== ====================
-  _                          _                 truck    ship    H2 pipeline    CNG pipeline    reference flow
- ========================== ================= ======== ======= ============== =============== ====================
-  gaseous                    compression       0.5%             0.5%           0.5%            per kg H2
-  _                          storage buffer                     2.3%           2.3%            per kg H2
-  _                          storage leak                       1.0%           1.0%            per kg H2
-  _                          pipeline leak                      0.004%         0.004%          per kg H2, per km
-  _                          purification                                      7.0%            per kg H2
-  liquid                     liquefaction      1.3%     1.3%                                   per kg H2
-  _                          vaporization      2.0%     2.0%                                   per kg H2
-  _                          boil-off          0.2%     0.2%                                   per kg H2, per day
-  liquid organic compound    hydrogenation     0.5%                                            per kg H2
- ========================== ================= ======== ======= ============== =============== ====================
-
-Losses accumulate along the supply chain and depend on route and distance.
-Use a consistent production or delivery basis when combining loss fractions.
-The table below shows the example of 1 kg of hydrogen transport via re-assigned CNG pipelines,
-as a gas, over 500 km.
-The supplier input is 1.133 kg per kg delivered: 0.133 kg is lost per kg
-delivered, approximately 11.7% of the hydrogen produced:
-
-
- =============================================================================== ============== ================ ===========
-  Output                                                                          _              _                _
- =============================================================================== ============== ================ ===========
-  producer                                                                        amount         unit             location
-  hydrogen supply, from electrolysis, by CNG pipeline, as gaseous, over 500 km    1              kilogram         OCE
-  Input
-  supplier                                                                        amount         unit             location
-  hydrogen production, gaseous, 25 bar, from electrolysis                         1.133          kilogram         OCE
-  market group for electricity, low voltage                                       3.091          kilowatt hour    OCE
-  market group for electricity, low voltage                                       0.516          kilowatt hour    OCE
-  hydrogen embrittlement inhibition                                               1              kilogram         OCE
-  geological hydrogen storage                                                     1              kilogram         OCE
-  Hydrogen refuelling station                                                     1.14E-07       unit             OCE
-  distribution pipeline for hydrogen, reassigned CNG pipeline                     1.56E-08       kilometer        RER
-  transmission pipeline for hydrogen, reassigned CNG pipeline                     1.56E-08       kilometer        RER
- =============================================================================== ============== ================ ===========
-
-
-The two direct electricity exchanges in this route illustration sum to
-3.607 kWh per kg delivered. Additional requirements must be checked in the
-linked distribution and storage activities. The illustration is not an
-independent validation of the active scenario's delivery route.
+Energy use, infrastructure and make-up hydrogen for losses are represented in
+the linked support inventories. Compare supplies at the same delivery state
+and pressure, and include these services when assessing delivered hydrogen.
+The dataset names used to identify markets and services are listed under
+:ref:`hydrogen-supply-chain-names`.
 
 .. _sector-specific-hydrogen-markets:
 
@@ -1146,10 +1097,67 @@ case. Where a value remains an author assumption, label it as such and provide
 a rationale and sensitivity range. These qualifications describe the current
 defaults; they do not change their numerical values or the executable method.
 
+.. _hydrogen-supply-chain-names:
+
 Detailed supply-chain names
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. include:: /reference/generated/hydrogen-variants.inc
+The general supply dataset is ``market for hydrogen, gaseous, low pressure``,
+with the reference product ``hydrogen, gaseous, low pressure`` and unit
+``kilogram``. Sector markets add an end-use suffix, for example
+``market for hydrogen, gaseous, low pressure, for steel``. The full list and
+the demand and consumer conditions for creating these markets are given in
+:ref:`sector-specific-hydrogen-markets`.
+
+Each market links its production mix to separate delivery and conditioning
+services. The market's exchanges specify the mix of delivery modes and the
+amounts of transport and conversion required. To inspect those services,
+look for the following activity names:
+
+.. list-table:: Hydrogen delivery and conditioning activities
+   :header-rows: 1
+   :widths: 25 60 15
+
+   * - Service
+     - Activity name
+     - Unit
+   * - Pipeline distribution
+     - ``hydrogen supply, distributed by pipeline``
+     - kilogram
+   * - Compressed hydrogen trucking
+     - ``transport, hydrogen, gaseous, lorry, unspecified``
+     - ton kilometer
+   * - Liquid hydrogen trucking
+     - ``transport, hydrogen, liquid, lorry, unspecified``
+     - ton kilometer
+   * - Ammonia shipping
+     - ``transport, freight, sea, tanker for liquefied ammonia, ammonia and mdo``
+     - ton kilometer
+   * - Compression
+     - ``gaseous hydrogen production``
+     - unit
+   * - Liquefaction
+     - ``liquid hydrogen production``
+     - unit
+   * - Regasification
+     - ``liquid hydrogen regasification``
+     - unit
+   * - Ammonia synthesis
+     - ``liquid ammonia production``
+     - unit
+   * - Ammonia cracking
+     - ``ammonia cracking``
+     - unit
+
+Pipeline, truck and conversion activities are regionalized from imported
+inventories; the ammonia ship activity remains global. The conversion
+activities provide processing services, despite the word "production" in
+some of their names. Their service inputs are separate from the hydrogen
+production mix.
+
+A service's presence in the database does not mean that every hydrogen market
+uses it. Check the market's exchanges for its actual delivery mix, and its
+location for the region supplied.
 
 
 Vehicle hydrogen tank inventories
