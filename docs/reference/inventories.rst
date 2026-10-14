@@ -99,11 +99,11 @@ kilogram of hydrogen assigned to that distribution mode. These auxiliary loss
 and conversion inputs leave the one-kilogram hydrogen production-mix input to
 each market unchanged.
 
-The conversion inventories use reference unit ``unit``. Their source fields,
-exchange comments, physical-basis qualifications and unresolved citations are
-consolidated in :ref:`hydrogen-distribution-inventory-sources`. For the node
-and distance assumptions see :ref:`hydrogen-distribution-references`; for a
-summary of missing or weak support see :ref:`hydrogen-distribution-evidence-gaps`.
+The conversion inventories use reference unit ``unit`` for processing
+services. See :ref:`hydrogen-distribution-inventory-sources` for their
+scientific basis, :ref:`hydrogen-distribution-references` for the consumer
+and distance assumptions, and :ref:`hydrogen-distribution-evidence-gaps`
+for limitations affecting the interpretation of results.
 
 See :ref:`sector-specific-hydrogen-markets` for the complete workflow from IAM
 demand and demand-node estimation through the decision tree, market construction,

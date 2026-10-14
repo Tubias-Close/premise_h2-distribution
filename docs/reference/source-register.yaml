@@ -95,8 +95,9 @@ sectors:
   title: Hydrogen
   page: methodology/fuels/hydrogen
   implementation: premise/fuels/hydrogen.py
-  data_years: Source publications mainly 2011–2022; reference/projection years vary
-    by route
+  data_years: Production and legacy supply-route sources mainly 2011–2022;
+    sector-specific distribution references extend to 2026. Reference and
+    projection years vary by route.
   boundary: kg hydrogen with production, conditioning, transport and losses; plant-gate
     and delivered hydrogen are different functional units.
   applicability: IAM hydrogen efficiency where mapped; external electrolysis assumptions otherwise; other feedstocks unchanged.

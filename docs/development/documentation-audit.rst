@@ -49,6 +49,10 @@ Confirmed and corrected
 Unresolved implementation and source questions
 ------------------------------------------------
 
+The later :doc:`hydrogen-distribution-review` records the 13 October 2026
+parameter and inventory source review, including unresolved derivations and
+mass- and energy-basis questions.
+
 * A self-contained ``LegacyInventoryStore.transaction`` example raises
   ``AttributeError`` because its dictionary-backed exchange state has no
   ``shallow_copy`` method. The same query/edit example is tested with
