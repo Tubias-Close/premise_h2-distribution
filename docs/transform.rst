@@ -504,25 +504,25 @@ to its maintained guide or reference.
 
    <span id="id3"></span>
 
-**Demand-node assumptions** — `Hydrogen methodology <methodology/fuels/hydrogen.html#demand-node-creation>`__
+**Demand-node assumptions** — `Hydrogen methodology <methodology/fuels/hydrogen.html#demand-per-plant-or-refuelling-station>`__
 
 .. raw:: html
 
    <span id="id5"></span>
 
-**Hydrogen end-use markets** — `Hydrogen methodology <methodology/fuels/hydrogen.html#sector-market-creation-and-transport-shares>`__
+**Hydrogen end-use markets** — `Hydrogen methodology <methodology/fuels/hydrogen.html#sector-specific-hydrogen-markets>`__
 
 .. raw:: html
 
    <span id="id6"></span>
 
-**Distribution exchanges per kilogram of market output** — `Hydrogen methodology <methodology/fuels/hydrogen.html#sector-market-creation-and-transport-shares>`__
+**Distribution exchanges per kilogram of market output** — `Hydrogen methodology <methodology/fuels/hydrogen.html#delivery-inputs-and-losses>`__
 
 .. raw:: html
 
    <span id="id7"></span>
 
-**Consumer-routing summary** — `Hydrogen methodology <methodology/fuels/hydrogen.html#customer-relinking>`__
+**Consumer-routing summary** — `Hydrogen methodology <methodology/fuels/hydrogen.html#linking-hydrogen-consumers>`__
 
 .. raw:: html
 

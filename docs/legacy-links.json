@@ -816,22 +816,22 @@
   },
   {
     "old": "transform.html#id3",
-    "new": "methodology/fuels/hydrogen.html#demand-node-creation",
+    "new": "methodology/fuels/hydrogen.html#demand-per-plant-or-refuelling-station",
     "title": "Demand-node assumptions"
   },
   {
     "old": "transform.html#id5",
-    "new": "methodology/fuels/hydrogen.html#sector-market-creation-and-transport-shares",
+    "new": "methodology/fuels/hydrogen.html#sector-specific-hydrogen-markets",
     "title": "Hydrogen end-use markets"
   },
   {
     "old": "transform.html#id6",
-    "new": "methodology/fuels/hydrogen.html#sector-market-creation-and-transport-shares",
+    "new": "methodology/fuels/hydrogen.html#delivery-inputs-and-losses",
     "title": "Distribution exchanges per kilogram of market output"
   },
   {
     "old": "transform.html#id7",
-    "new": "methodology/fuels/hydrogen.html#customer-relinking",
+    "new": "methodology/fuels/hydrogen.html#linking-hydrogen-consumers",
     "title": "Consumer-routing summary"
   },
   {
@@ -2658,29 +2658,29 @@
   },
   {
     "old": "methodology/fuels/hydrogen.html#hydrogen-supply-chains",
-    "new": "methodology/fuels/hydrogen.html#hydrogen-supply-chains",
-    "title": "Hydrogen supply chains",
+    "new": "methodology/fuels/hydrogen.html#supply-chain-overview",
+    "title": "Supply-chain overview",
     "generation": 2,
     "compatibility_page": false
   },
   {
     "old": "methodology/fuels/hydrogen.html#source-inventories-hydrogen",
-    "new": "methodology/fuels/hydrogen.html#source-inventories-hydrogen",
-    "title": "Source inventories: hydrogen",
+    "new": "methodology/fuels/hydrogen.html#sources-and-inventory-details",
+    "title": "Sources and inventory details",
     "generation": 2,
     "compatibility_page": false
   },
   {
     "old": "methodology/fuels/hydrogen.html#hydrogen-production",
-    "new": "methodology/fuels/hydrogen.html#hydrogen-production",
-    "title": "Hydrogen production",
+    "new": "methodology/fuels/hydrogen.html#hydrogen-production-inventories",
+    "title": "Hydrogen production inventories",
     "generation": 2,
     "compatibility_page": false
   },
   {
     "old": "methodology/fuels/hydrogen.html#hydrogen-storage-and-distribution",
-    "new": "methodology/fuels/hydrogen.html#hydrogen-storage-and-distribution",
-    "title": "Hydrogen storage and distribution",
+    "new": "methodology/fuels/hydrogen.html#storage-and-distribution-infrastructure",
+    "title": "Storage and distribution infrastructure",
     "generation": 2,
     "compatibility_page": false
   },

@@ -1,103 +1,106 @@
 Hydrogen
-==========
+========
 
+This chapter explains how Premise adapts hydrogen production and represents
+delivery to different end uses. It follows the calculation from production
+efficiency and regional demand to delivery choices, markets and consumer
+links. Assumptions, worked examples and supporting sources follow the method.
 
 .. contents:: On this page
    :local:
    :depth: 1
 
-.. raw:: html
-
-   <span id="key-outputs"></span>
+.. _key-outputs:
 
 Scope and outputs
--------------------
+-----------------
 
 Within the ``fuels`` update, Premise regionalizes hydrogen production and
-builds regional gaseous low-pressure hydrogen markets per kilogram. These
-markets combine the hydrogen production mix with transport and conditioning
-services. Sector-specific markets use delivery mixes tailored to their end uses.
+builds markets supplying one kilogram of gaseous, low-pressure hydrogen.
+Each market combines a production mix with delivery and conditioning services.
+Sector markets distinguish transport, chemicals, steel, cement, heating and
+other end uses where the scenario and consuming activities support them.
 
 .. figure:: /_static/process-diagrams/fuels-hydrogen.svg
    :class: process-diagram
-   :alt: Hydrogen production and delivery: Regionalize hydrogen production; Adjust selected feedstock inputs; Build regional hydrogen markets; Add pipeline delivery service and relink.
+   :alt: Hydrogen update: estimate demand and delivery shares; prepare regional production and delivery activities; build general and eligible sector markets; link consumers and check the supply chain.
    :align: center
 
-Inputs and applicability
---------------------------
+   Overview of the hydrogen update workflow.
 
-The hydrogen entries of ``fuels.yaml`` map inventories and IAM production
-and efficiency series. ``premise/data/fuels/hydrogen_efficiency_parameters.yml`` supplies
-feedstock selectors and external electrolysis assumptions. The fuels branch
+.. _hydrogen-supply-chains:
+
+Supply-chain overview
+~~~~~~~~~~~~~~~~~~~~~
+
+Production, delivery and conditioning are represented by separate activities
+linked through a hydrogen market. Each kilogram of market output receives one
+kilogram from the production mix, together with the required delivery services.
+Those services include energy use, infrastructure and make-up hydrogen for
+losses. A delivered-hydrogen result therefore includes more than production at
+the plant gate.
+
+The general market uses pipeline delivery. Sector markets can combine
+pipeline, truck, ship and on-site supply. Their delivery shares depend on
+regional demand and the assumed scale of individual consumers. The
+:ref:`market construction <sector-specific-hydrogen-markets>` and
+:ref:`delivery inputs <hydrogen-market-delivery-inputs>` sections explain how
+these choices enter the inventory.
+
+Inputs and applicability
+------------------------
+
+The hydrogen update uses three kinds of input:
+
+* **IAM scenario data:** hydrogen production volumes, mapped efficiency
+  changes, direct-hydrogen final-energy demand, and production or transport
+  activity used to estimate consumer numbers.
+* **Life-cycle inventories:** hydrogen production, transport, storage and
+  conversion activities that provide the underlying materials and energy
+  requirements.
+* **Additional assumptions:** an external electrolysis efficiency trajectory,
+  representative plant and station sizes, distribution shares and delivery
+  distances. Their sources are documented under :ref:`hydrogen-production`
+  and :ref:`hydrogen-distribution-references`.
+
+The hydrogen entries in ``fuels.yaml`` connect production inventories to IAM
+series. The hydrogen efficiency parameters select the feedstock exchanges to
+adjust and provide the external electrolysis assumptions.
+
+Use ``ndb.update("fuels")`` after upstream energy updates. The fuels update
 runs when at least one petrol, diesel, natural-gas or hydrogen blend array is
-available. Use ``ndb.update("fuels")`` after upstream energy updates.
+available. Creation of a sector-specific hydrogen market additionally requires
+usable sector demand and an eligible consumer, as described below.
 
 Transformation
-----------------
+--------------
+
+Production adjustments determine the burden of making hydrogen. The demand
+and distribution calculations determine how it is delivered. The following
+steps describe these two parts before they are combined into markets.
+
+.. contents:: Calculation steps
+   :local:
+   :depth: 1
+   :backlinks: none
+
+.. _hydrogen-production-efficiency:
+
+Production and efficiency
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
 For a mapped IAM efficiency signal, the selected feedstock exchanges are
 multiplied by the inverse efficiency change. Selection uses the configured
 name substring and unit; other inputs are not automatically scaled.
 Without an IAM signal, electrolysis uses the external electricity-requirement
 trajectory. Other pathways keep their feedstock amount in this adjustment.
-The energy-floor limitation below qualifies the IAM branch.
+The :ref:`energy-floor limitation <implementation-limitation-energy-floors>`
+qualifies the IAM branch.
 
-Hydrogen supply chains
+.. _direct-hydrogen-demand:
+
+Regional hydrogen demand
 ~~~~~~~~~~~~~~~~~~~~~~~~
-
-Hydrogen production, delivery and conditioning are represented by separate
-activities linked through a hydrogen market. Each kilogram of market output
-receives one kilogram from the production mix, together with the services
-needed for delivery.
-
-The general hydrogen market includes one kilogram of pipeline distribution
-service per kilogram of hydrogen. Sector-specific markets combine pipeline,
-truck, ship and on-site supply according to their regional demand and
-distribution rules. Compression, liquefaction, regasification, ammonia
-synthesis and cracking are added where the selected delivery mode requires
-them. The :ref:`sector-specific-hydrogen-markets` section describes these
-shares, distances and service quantities.
-
-Energy use, infrastructure and make-up hydrogen for losses are represented in
-the linked support inventories. Compare supplies at the same delivery state
-and pressure, and include these services when assessing delivered hydrogen.
-The dataset names used to identify markets and services are listed under
-:ref:`hydrogen-supply-chain-names`.
-
-.. _sector-specific-hydrogen-markets:
-
-Sector-specific hydrogen markets
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The fuel transformation creates end-use-specific hydrogen markets so that the
-logistics burden of supplying hydrogen can differ between steel, cement,
-chemicals, transport, heating, and other uses. The calculation is performed in
-the following order:
-
-.. code-block:: text
-
-   normalized direct-hydrogen final energy
-                 |
-                 v
-   regional sector demand and demand-node estimates
-                 |
-                 v
-   distribution decision tree for every demand row
-                 |
-                 v
-   demand-weighted transport shares in each sector market
-                 |
-                 v
-   relinking of eligible hydrogen consumers
-
-This order is mandatory. Demand-node calculation and its audit log run before
-hydrogen activities are generated. Sector markets are then created, and only
-markets that were actually added to the database can receive consumers. An
-exception in logistics calculation, audit logging, or market creation stops the
-fuel transformation before consumer relinking.
-
-Direct-hydrogen demand
-^^^^^^^^^^^^^^^^^^^^^^
 
 Sector-specific hydrogen markets are considered only in IAM regions with
 positive direct-hydrogen final-energy demand. Direct hydrogen is identified
@@ -121,6 +124,9 @@ the regional values. It is then removed from the demand-node table and from
 sector-market creation. Automatic creation of a ``World`` market is disabled;
 global totals must therefore be calculated from the regional rows without
 adding the IAM aggregate.
+
+Differences between IAMs
+^^^^^^^^^^^^^^^^^^^^^^^^
 
 Steel, cement, and chemicals use model-specific coordinate hierarchies.
 Candidate groups are ordered by preference, and only the first group represented
@@ -208,8 +214,10 @@ already-assigned cement demand, clipped at zero.
    steel-plant-count proxy. This gives 66,523.17888 t H2/year and two assumed
    0.5 Mt/year plants per Mt of regional H-DRI/EAF production.
 
-Demand-node creation
-^^^^^^^^^^^^^^^^^^^^
+.. _demand-node-creation:
+
+Demand per plant or refuelling station
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Each positive regional demand row is assigned a demand-node type. The node
 count represents the number of plants, refuelling stations, or generic demand
@@ -268,8 +276,10 @@ unrounded value. The demand-node table also records annual and daily hydrogen
 demand per node, source IAM variables, the calculation method, and the result
 of the regional-versus-``World`` validation.
 
+.. _hydrogen-distribution-rules:
+
 Distribution decision tree
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The rules in
 ``premise/fuels/h2_decision_tree/hydrogen_distribution_shares.yaml`` are
@@ -339,8 +349,38 @@ a complete distribution result.
    No published calibration establishes these particular values;
    see :ref:`hydrogen-distribution-evidence-gaps`.
 
-Sector-market creation and transport shares
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Markets and downstream links
+----------------------------
+
+Markets combine the production mix with the delivery services calculated
+above. Production suppliers follow the mapped production volumes and the
+common :doc:`system-model weighting <markets>`. General and sector-specific
+markets differ in their delivery inputs and the consumers they serve.
+
+.. contents:: Market construction and use
+   :local:
+   :depth: 1
+   :backlinks: none
+
+General hydrogen market
+~~~~~~~~~~~~~~~~~~~~~~~
+
+The general supply dataset is ``market for hydrogen, gaseous, low pressure``,
+with reference product ``hydrogen, gaseous, low pressure`` and unit
+``kilogram``. It adds one kilogram of the regional
+``hydrogen supply, distributed by pipeline`` service per kilogram of market
+output.
+
+Consumers use this general market when the routing rules retain it or when a
+suitable sector market is unavailable. Shared delivery and conversion
+activities also use general markets for their make-up hydrogen.
+
+.. _sector-specific-hydrogen-markets:
+
+.. _sector-market-creation-and-transport-shares:
+
+Sector-specific hydrogen markets
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The transformation can create the following markets, each supplying one
 kilogram of low-pressure gaseous hydrogen:
@@ -373,6 +413,11 @@ one unambiguously classified final hydrogen consumer. Eligibility,
 consumer-backing, successful construction, regions excluded for lack of a
 consumer, and desired markets that could not be created are tracked separately.
 Markets that lose their last consumer are removed during synchronization.
+
+.. _hydrogen-market-delivery-inputs:
+
+Delivery inputs and losses
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 When several demand rows contribute to the same sector-region market, the share
 of distribution mode :math:`m` is weighted by annual hydrogen demand:
@@ -440,8 +485,10 @@ adds only any remaining deficit. These loss inputs do not change the market
 invariant: production-mix suppliers still provide exactly one kilogram of
 hydrogen per kilogram of generic or sector-market output.
 
-Customer relinking
-^^^^^^^^^^^^^^^^^^
+.. _customer-relinking:
+
+Linking hydrogen consumers
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 After sector markets have been created, the transformation inspects activities
 with a technosphere input to either the generic or an already sector-specific
@@ -506,39 +553,35 @@ created by later heat or transport updates, prunes orphan markets, refreshes
 diagnostics, and fails if a major hydrogen-integrity issue remains. It is
 idempotent across repeated, reordered, and incremental updates.
 
-Diagnostics
-^^^^^^^^^^^
-
-The structured change report's ``Hydrogen`` sheet contains one row for every demand node and one row for
-every successful sector-market relink. In addition, the transformed scenario
-stores the demand-node table; eligible, consumer-backed, excluded-without-
-consumers, generated, uncreated, and skipped sector markets; and matched,
-unmatched, and skipped hydrogen consumers. These
-records distinguish a legitimately absent market from a routing or construction
-problem and make the full demand-to-consumer chain auditable.
-
-Markets and downstream links
-------------------------------
-
-Generated hydrogen markets use mapped production volumes and the common
-system-model supplier weighting. A regionalized
-``hydrogen supply, distributed by pipeline`` service is added at 1 kg per kg
-of market output. This does not mean all truck, ship and pipeline variants
-listed in the inventory catalogue are deployed in every scenario.
-Relinking connects the resulting suppliers to consuming activities.
-
 Assumptions and limitations
------------------------------
+---------------------------
 
-Compare hydrogen at the same pressure, state and delivery boundary.
-External electrolysis assumptions are distinct from IAM projections. When
-checking energy floors, inspect actual exchanges as well as logged totals;
-the exchange behavior described below applies.
+Interpret results in light of both the supply boundary and the evidence
+supporting the production and delivery assumptions.
+
+Delivery boundary
+~~~~~~~~~~~~~~~~~
+
+Compare hydrogen at the same pressure, state and delivery boundary. Include
+the linked transport and conversion services when assessing delivered supply.
+The one-kilogram production mix at market level does not include all upstream
+make-up hydrogen used to compensate for losses in those services.
+
+.. _implementation-limitation-energy-floors:
+
+Production energy floors
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+External electrolysis assumptions are distinct from IAM projections. In the
+IAM branch, feedstock exchanges use the inverse efficiency factor without
+enforcing the configured minimum on their amounts. The reported energy value
+can therefore differ from the sum of those exchanges. Use the actual exchange
+sum when assessing energy demand.
 
 .. _hydrogen-distribution-evidence-gaps:
 
 Evidence gaps and interpretation limits
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The distribution model represents a possible delivery system for each sector.
 Its results depend on assumptions that remain only partly supported:
@@ -568,31 +611,105 @@ mode shares and thresholds has not been established. When using these results
 to compare supply options, examine those assumptions as well as transport
 distance; changing distance alone does not capture the full uncertainty.
 
-Implementation limitation: energy floors
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-In the IAM branch, feedstock exchanges use the inverse efficiency factor
-without enforcing the configured minimum on their amounts. The reported
-energy value can therefore differ from the sum of those exchanges. Use the
-actual exchange sum when assessing energy demand.
-
 Worked example and checks
----------------------------
+-------------------------
 
-If the mapped efficiency improves by 10%, a selected 55 kWh/kg electricity
-input becomes 55/1.1 = 50 kWh/kg before any separate delivery requirements.
-For a delivery route requiring 1.133 kg produced per kg delivered, the excess
-is 0.133 kg per kg delivered, or about 11.7% of production. Check the loss
-basis, transport electricity and the route actually linked to the consumer.
+These examples illustrate individual calculation steps. They do not describe
+a complete IAM scenario or validate the assumptions used by the model.
+
+Production efficiency example
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If the mapped efficiency improves by 10%, a selected electricity input of
+55 kWh/kg becomes ``55 / 1.1 = 50 kWh/kg``. This calculation concerns the
+production activity; delivery and conditioning add their own requirements.
+
+Distribution example
+~~~~~~~~~~~~~~~~~~~~
+
+Consider an eligible demand row with **500 t of hydrogen per node per year**.
+The distribution rule assigns 80% to compressed hydrogen by truck and 20% to
+liquid hydrogen by truck. If this is the only demand row contributing to the
+sector market, its shares become the market shares.
+
+For one kilogram of market output, the direct inputs are:
+
+.. list-table:: Illustrative market inputs
+   :header-rows: 1
+   :widths: 45 55
+
+   * - Input
+     - Amount
+   * - Hydrogen production mix
+     - 1 kg
+   * - Compressed hydrogen trucking
+     - ``0.8 * 50 km * 0.001 t/kg = 0.040 tkm``
+   * - Liquid hydrogen trucking
+     - ``0.2 * 100 km * 0.001 t/kg = 0.020 tkm``
+   * - Compression service
+     - 0.8 units
+   * - Liquefaction service
+     - 0.2 units
+   * - Regasification service
+     - 0.2 units
+
+Make-up hydrogen for losses is accounted for within the supporting inventories.
+It must be included when evaluating the full supply-chain result. With several
+demand rows, first weight each row's delivery shares by its annual hydrogen
+demand, as described under :ref:`hydrogen-market-delivery-inputs`.
+
+.. _diagnostics:
+
+Checking the generated database
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Follow the same chain when inspecting a result:
+
+#. Check regional hydrogen demand and the estimated demand per plant or station.
+#. Identify the selected distribution rule and verify that transport and on-site
+   shares sum to one.
+#. Check which sector markets were created and inspect their production,
+   transport and conversion inputs.
+#. Follow the consumer's hydrogen exchange to confirm its sector and region.
+#. Include support inventories when checking energy use and hydrogen losses.
+
+The structured change report's ``Hydrogen`` sheet contains one row for every demand node and one row for
+every successful sector-market relink. In addition, the transformed scenario
+stores the demand-node table; eligible, consumer-backed, excluded-without-
+consumers, generated, uncreated, and skipped sector markets; and matched,
+unmatched, and skipped hydrogen consumers. These
+records distinguish a legitimately absent market from a routing or construction
+problem and make the full demand-to-consumer chain auditable.
+
+Demand and logistics calculations must succeed before sector-market creation
+and consumer linking. An error in logistics, its audit records or market
+creation stops the fuels update rather than leaving a partial delivery system.
+
+.. _source-inventories-hydrogen:
 
 Sources and inventory details
--------------------------------
+-----------------------------
 
-Source inventories: hydrogen
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The sources below follow the same order as the method: production, demand
+and distance assumptions, then delivery services. Turbine and vehicle-tank
+inventories are grouped separately because they describe hydrogen end uses.
 
-Hydrogen production
-^^^^^^^^^^^^^^^^^^^^^
+.. contents:: Source groups
+   :local:
+   :depth: 1
+   :backlinks: none
+
+.. _source-provenance-and-currency:
+
+Sources and data dates
+~~~~~~~~~~~~~~~~~~~~~~
+
+.. include:: /reference/generated/source-hydrogen.inc
+
+.. _hydrogen-production:
+
+Hydrogen production inventories
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 *premise* imports inventories for hydrogen production. The table below
 gives an overview of the different pathways and their assumed specific energy use
@@ -788,70 +905,12 @@ Future efficiencies for electrolyzers are based on Studie `IndWEDe <https://www.
 The SOEC inventory with a steam input uses the same performance assumptions as
 the standard SOEC inventory because no separate performance data are available.
 
-Hydrogen storage and distribution
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-A number of datasets relating to hydrogen storage and distribution are also imported.
-
-They are necessary to model the distribution of hydrogen:
-
-* via re-assigned transmission and distribution CNG pipelines, in a gaseous state
-* via dedicated transmission and distribution hydrogen pipelines, in a gaseous state
-* as a liquid organic compound, by hydrogenation
-* via truck, in a liquid state
-* hydrogen refuelling station
-
-Small and large storage solutions are also provided:
-* high pressure hydrogen storage tank
-* geological storage tank
-
-These datasets originate from the work of `Wulf <https://www.sciencedirect.com/science/article/pii/S095965261832170X>`__ et al. 2018, and can be
-consulted here: `LCI_H2_distr <https://github.com/polca/premise/blob/76dbf845ef73bb765024dda1143960a24964a5fe/premise/data/additional_inventories/lci-hydrogen-distribution.xlsx>`__. For re-assigned CNG pipelines, which require the hydrogen
-to be mixed together with oxygen to limit metal embrittlement,
-some parameters are taken from the work of `Cerniauskas <https://doi.org/10.1016/j.ijhydene.2020.02.121>`__ et al. 2020.
-
-The datasets introduced are listed in the table below.
-
- ================================================================== ===========
-  Hydrogen distribution                                              location
- ================================================================== ===========
-  hydrogen refuelling station                                        GLO
-  high pressure hydrogen storage tank                                GLO
-  pipeline, hydrogen, low pressure distribution network              RER
-  compressor assembly for transmission hydrogen pipeline             RER
-  pipeline, hydrogen, high pressure transmission network             RER
-  zinc coating for hydrogen pipeline                                 RER
-  hydrogenation of hydrogen                                          RER
-  dehydrogenation of hydrogen                                        RER
-  dibenzyltoluene production                                         RER
-  solution mining for geological hydrogen storage                    RER
-  geological hydrogen storage                                        RER
-  hydrogen embrittlement inhibition                                  RER
-  distribution pipeline for hydrogen, reassigned CNG pipeline        RER
-  transmission pipeline for hydrogen, reassigned CNG pipeline        RER
- ================================================================== ===========
-
-
-Hydrogen turbine
-^^^^^^^^^^^^^^^^^^
-
-A dataset for a hydrogen turbine is also imported, to model the production of electricity
-from hydrogen, with an efficiency of 51%. The efficiency of the H2-fed gas turbine is based
-on the parameters of `Ozawa <https://doi.org/10.1016/j.ijhydene.2019.02.230>`__ et al. (2019), accessible here: `LCI_H2_turbine <https://github.com/polca/premise/blob/76dbf845ef73bb765024dda1143960a24964a5fe/premise/data/additional_inventories/lci-hydrogen-turbine.xlsx>`__.
-
-.. raw:: html
-
-   <span id="source-provenance-and-currency"></span>
-
-Sources and data dates
-~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. include:: /reference/generated/source-hydrogen.inc
-
 .. _hydrogen-distribution-references:
 
-Hydrogen distribution assumptions and references
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. _hydrogen-distribution-assumptions-and-references:
+
+Demand and distance assumptions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Hydrogen delivery depends on how much each consumer needs, how often it needs
 it, and how far it is from the supplier. Premise estimates these quantities
@@ -859,7 +918,10 @@ using typical plant sizes, vehicle use and delivery distances. Hydrogen demand
 changes with the IAM scenario; the defaults below are held constant across
 regions and years.
 
-**Industrial consumers.** Regional production or hydrogen demand is divided
+Industrial consumers
+^^^^^^^^^^^^^^^^^^^^
+
+Regional production or hydrogen demand is divided
 among representative plants. These plants describe a typical scale of demand;
 they are not a map of actual facilities.
 
@@ -900,7 +962,10 @@ characteristics, rather than measured global averages. The ``Other`` category
 also includes uses beyond the glass and paper industries represented by these
 studies.
 
-**Refuelling stations.** Passenger and freight transport demand is converted
+Refuelling stations
+^^^^^^^^^^^^^^^^^^^
+
+Passenger and freight transport demand is converted
 into vehicle numbers and refuelling visits. Station numbers depend on the
 following assumptions.
 
@@ -947,7 +1012,10 @@ report describes daily refuelling for maximum-range operation, with less
 frequent visits at lower mileage. Station throughput also remains uncertain,
 including the interpretation of capacity as vehicles served per day.
 
-**Delivery distances.** Each delivery mode uses a representative distance.
+Delivery distances
+^^^^^^^^^^^^^^^^^^
+
+Each delivery mode uses a representative distance.
 The model does not calculate routes between individual producers and consumers.
 
 .. list-table:: Default delivery distances
@@ -980,68 +1048,22 @@ does not establish these distances as global averages. For example, Hampp et
 al. use different shipping distances for different exporting countries. The
 choice of a single 2,500 km route is therefore a simplifying assumption.
 
-.. _hydrogen-distribution-inventory-sources:
+Delivery inventories
+~~~~~~~~~~~~~~~~~~~~
 
-Transport and conversion inventory sources
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Delivery adds energy use, infrastructure and losses to hydrogen production.
-Compressed hydrogen requires compression; liquid hydrogen requires
-liquefaction and regasification; ammonia delivery requires synthesis followed
-by cracking to recover hydrogen. The main inventory sources are:
-
-* **Liquefaction and ammonia synthesis:** `Wei et al. (2026)
-  <https://doi.org/10.1016/j.resconrec.2025.108671>`__, supplementary Tables
-  S21-S22 and S28-S30. The study draws on Al Ghafri et al., Wulf and Zapp,
-  and D'Angelo et al. for these processes.
-* **Compression:** ecoinvent compression inputs, with a pipeline-compressor
-  proxy for equipment. Equipment requirements at the 250-bar delivery
-  pressure remain uncertain.
-* **Regasification:** `Kolb et al. (2022)
-  <https://doi.org/10.1016/j.jclepro.2022.133289>`__, an assessment of liquid
-  hydrogen imports to Germany.
-* **Truck transport, storage and refuelling infrastructure:**
-  `Wulf et al. (2018)
-  <https://www.sciencedirect.com/science/article/pii/S095965261832170X>`__
-  and Reuss et al. (2019). Reassigned natural-gas pipelines also draw on
-  `Cerniauskas et al. (2020)
-  <https://doi.org/10.1016/j.ijhydene.2020.02.121>`__.
-* **Ammonia cracking:** `Thyssenkrupp Uhde
-  <https://www.thyssenkrupp-uhde.com/en/ammonia-cracking>`__ provides the
-  plant-sizing reference. The energy requirement and hydrogen recovery
-  assumptions do not yet have a sufficiently precise supporting source.
-* **Ammonia shipping:** an ecoinvent liquefied-natural-gas tanker provides
-  the vessel and auxiliary infrastructure. Fuel and emission assumptions
-  draw on IMO reports, Sphera (2024), Wei et al. and author calculations.
-  Some of these sources lack full bibliographic details, and the retained
-  LNG infrastructure is an approximation of ammonia transport.
-
-Support for an individual process does not validate the complete delivery
-chain. In particular, the ammonia route still requires reconciliation of
-cargo mass, conversion energy and hydrogen recovery. Truck loss assumptions
-also need a consistent basis for relating the quantity lost to the distance
-travelled. See :ref:`hydrogen-distribution-evidence-gaps` for the implications
-when interpreting results.
-
-Implementation locations and detailed source checks are available in the
-:doc:`developer source review </development/hydrogen-distribution-review>`.
+The delivery model uses transport and conditioning services together with
+their supporting infrastructure. The catalogue below distinguishes the service
+activities linked to markets from the underlying storage and infrastructure
+inventories.
 
 .. _hydrogen-supply-chain-names:
 
 Detailed supply-chain names
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The general supply dataset is ``market for hydrogen, gaseous, low pressure``,
-with the reference product ``hydrogen, gaseous, low pressure`` and unit
-``kilogram``. Sector markets add an end-use suffix, for example
-``market for hydrogen, gaseous, low pressure, for steel``. The full list and
-the demand and consumer conditions for creating these markets are given in
-:ref:`sector-specific-hydrogen-markets`.
-
-Each market links its production mix to separate delivery and conditioning
-services. The market's exchanges specify the mix of delivery modes and the
-amounts of transport and conversion required. To inspect those services,
-look for the following activity names:
+The :ref:`sector-specific-hydrogen-markets` section lists market names and
+their creation conditions. To inspect the delivery and conditioning services
+linked to those markets, look for the following activity names:
 
 .. list-table:: Hydrogen delivery and conditioning activities
    :header-rows: 1
@@ -1088,9 +1110,114 @@ A service's presence in the database does not mean that every hydrogen market
 uses it. Check the market's exchanges for its actual delivery mix, and its
 location for the region supplied.
 
+.. _hydrogen-distribution-inventory-sources:
+
+Transport and conversion inventory sources
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Delivery adds energy use, infrastructure and losses to hydrogen production.
+Compressed hydrogen requires compression; liquid hydrogen requires
+liquefaction and regasification; ammonia delivery requires synthesis followed
+by cracking to recover hydrogen. The main inventory sources are:
+
+* **Liquefaction and ammonia synthesis:** `Wei et al. (2026)
+  <https://doi.org/10.1016/j.resconrec.2025.108671>`__, supplementary Tables
+  S21-S22 and S28-S30. The study draws on Al Ghafri et al., Wulf and Zapp,
+  and D'Angelo et al. for these processes.
+* **Compression:** ecoinvent compression inputs, with a pipeline-compressor
+  proxy for equipment. Equipment requirements at the 250-bar delivery
+  pressure remain uncertain.
+* **Regasification:** `Kolb et al. (2022)
+  <https://doi.org/10.1016/j.jclepro.2022.133289>`__, an assessment of liquid
+  hydrogen imports to Germany.
+* **Truck transport, storage and refuelling infrastructure:**
+  `Wulf et al. (2018)
+  <https://www.sciencedirect.com/science/article/pii/S095965261832170X>`__
+  and Reuss et al. (2019). Reassigned natural-gas pipelines also draw on
+  `Cerniauskas et al. (2020)
+  <https://doi.org/10.1016/j.ijhydene.2020.02.121>`__.
+* **Ammonia cracking:** `Thyssenkrupp Uhde
+  <https://www.thyssenkrupp-uhde.com/en/ammonia-cracking>`__ provides the
+  plant-sizing reference. The energy requirement and hydrogen recovery
+  assumptions do not yet have a sufficiently precise supporting source.
+* **Ammonia shipping:** an ecoinvent liquefied-natural-gas tanker provides
+  the vessel and auxiliary infrastructure. Fuel and emission assumptions
+  draw on IMO reports, Sphera (2024), Wei et al. and author calculations.
+  Some of these sources lack full bibliographic details, and the retained
+  LNG infrastructure is an approximation of ammonia transport.
+
+Support for an individual process does not validate the complete delivery
+chain. In particular, the ammonia route still requires reconciliation of
+cargo mass, conversion energy and hydrogen recovery. Truck loss assumptions
+also need a consistent basis for relating the quantity lost to the distance
+travelled. See :ref:`hydrogen-distribution-evidence-gaps` for the implications
+when interpreting results.
+
+Implementation locations and detailed source checks are available in the
+:doc:`developer source review </development/hydrogen-distribution-review>`.
+
+.. _hydrogen-storage-and-distribution:
+
+Storage and distribution infrastructure
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A number of datasets relating to hydrogen storage and distribution are also imported.
+
+They are necessary to model the distribution of hydrogen:
+
+* via re-assigned transmission and distribution CNG pipelines, in a gaseous state
+* via dedicated transmission and distribution hydrogen pipelines, in a gaseous state
+* as a liquid organic compound, by hydrogenation
+* via truck, in a liquid state
+* hydrogen refuelling station
+
+Small and large storage solutions are also provided:
+
+* high pressure hydrogen storage tank
+* geological storage tank
+
+These datasets originate from the work of `Wulf <https://www.sciencedirect.com/science/article/pii/S095965261832170X>`__ et al. 2018, and can be
+consulted here: `LCI_H2_distr <https://github.com/polca/premise/blob/76dbf845ef73bb765024dda1143960a24964a5fe/premise/data/additional_inventories/lci-hydrogen-distribution.xlsx>`__. For re-assigned CNG pipelines, which require the hydrogen
+to be mixed together with oxygen to limit metal embrittlement,
+some parameters are taken from the work of `Cerniauskas <https://doi.org/10.1016/j.ijhydene.2020.02.121>`__ et al. 2020.
+
+The datasets introduced are listed in the table below.
+
+ ================================================================== ===========
+  Hydrogen distribution                                              location
+ ================================================================== ===========
+  hydrogen refuelling station                                        GLO
+  high pressure hydrogen storage tank                                GLO
+  pipeline, hydrogen, low pressure distribution network              RER
+  compressor assembly for transmission hydrogen pipeline             RER
+  pipeline, hydrogen, high pressure transmission network             RER
+  zinc coating for hydrogen pipeline                                 RER
+  hydrogenation of hydrogen                                          RER
+  dehydrogenation of hydrogen                                        RER
+  dibenzyltoluene production                                         RER
+  solution mining for geological hydrogen storage                    RER
+  geological hydrogen storage                                        RER
+  hydrogen embrittlement inhibition                                  RER
+  distribution pipeline for hydrogen, reassigned CNG pipeline        RER
+  transmission pipeline for hydrogen, reassigned CNG pipeline        RER
+ ================================================================== ===========
+
+End-use inventories
+~~~~~~~~~~~~~~~~~~~
+
+These inventories describe the use or onboard storage of hydrogen. Their
+boundaries are separate from the delivery services supplied by hydrogen
+markets.
+
+Hydrogen turbine
+^^^^^^^^^^^^^^^^
+
+A dataset for a hydrogen turbine is also imported, to model the production of electricity
+from hydrogen, with an efficiency of 51%. The efficiency of the H2-fed gas turbine is based
+on the parameters of `Ozawa <https://doi.org/10.1016/j.ijhydene.2019.02.230>`__ et al. (2019), accessible here: `LCI_H2_turbine <https://github.com/polca/premise/blob/76dbf845ef73bb765024dda1143960a24964a5fe/premise/data/additional_inventories/lci-hydrogen-turbine.xlsx>`__.
 
 Vehicle hydrogen tank inventories
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The HDPE- and aluminium-lined 700-bar tank activities in ``lci-trucks.xlsx``
 produce one kg of dry tank assembly, including tank balance of plant and

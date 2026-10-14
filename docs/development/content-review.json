@@ -319,8 +319,8 @@
   },
   {
     "page": "methodology/fuels/hydrogen.rst",
-    "review_date": "2026-10-13",
-    "disposition": "Rewritten distribution sources for users: assumptions, literature and interpretation limits; implementation and workbook traceability moved to the developer source review.",
+    "review_date": "2026-10-14",
+    "disposition": "Reorganized production, demand, distribution, market construction and consumer linking into a logical reading order; grouped sources by purpose, added a distribution example and retained compatibility anchors and scientific limitations. Earlier source readability and developer traceability changes are preserved.",
     "review_level": "Editorial and implementation consistency review; scientific limitations retained"
   },
   {

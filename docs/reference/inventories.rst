@@ -105,6 +105,6 @@ scientific basis, :ref:`hydrogen-distribution-references` for the consumer
 and distance assumptions, and :ref:`hydrogen-distribution-evidence-gaps`
 for limitations affecting the interpretation of results.
 
-See :ref:`sector-specific-hydrogen-markets` for the complete workflow from IAM
-demand and demand-node estimation through the decision tree, market construction,
-and consumer relinking.
+See the :doc:`Hydrogen methodology </methodology/fuels/hydrogen>` for the
+complete workflow from IAM demand and demand-node estimation through the
+decision tree, market construction, and consumer relinking.
