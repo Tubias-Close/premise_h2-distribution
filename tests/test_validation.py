@@ -1,9 +1,9 @@
 import copy
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
 import xarray as xr
-from types import SimpleNamespace
 
 import premise.validation as validation_module
 from premise.geomap import Geomap
@@ -75,7 +75,9 @@ def test_combined_fast_export_session_matches_sequential_preparation():
         biosphere_name="biosphere3",
         version="3.12",
     )
-    combined_database, combined_report = combined_validator.run_fast_export_session()
+    combined_database, combined_report = (
+        combined_validator.run_fast_export_session()
+    )
 
     assert combined_database == expected_validator.database
     assert combined_report.rule_results == expected_report.rule_results
@@ -283,7 +285,9 @@ def test_fast_export_preparation_assigns_canonical_provider_input():
         "activity",
     )
 
-    database = DatasetNormalizer.from_validator(validator).prepare_fast_export_fields()
+    database = DatasetNormalizer.from_validator(
+        validator
+    ).prepare_fast_export_fields()
 
     assert database[0]["exchanges"][0]["input"] == (
         "test-db",
@@ -317,10 +321,14 @@ def test_fast_export_schema_rejects_non_scalar_numpy_array():
     )
 
 
-def _validator_for_locations(database_locations, regions=None, extra_regions=None):
+def _validator_for_locations(
+    database_locations, regions=None, extra_regions=None
+):
     validator = object.__new__(BaseDatasetValidator)
     validator.original_database = [{"location": "GLO"}]
-    validator.database = [{"location": location} for location in database_locations]
+    validator.database = [
+        {"location": location} for location in database_locations
+    ]
     validator.regions = regions or []
     validator.valid_regions = set(validator.regions) | set(extra_regions or [])
     validator.geo = Geomap("remind")
@@ -404,11 +412,15 @@ def test_emptied_transport_aggregation_reports_duplicate_supplier_identity():
     validator.check_vehicles()
 
     assert len(validator.major_issues_log) == 1
-    assert validator.major_issues_log[0]["reason"] == ("duplicate transport exchanges")
+    assert validator.major_issues_log[0]["reason"] == (
+        "duplicate transport exchanges"
+    )
 
 
 @pytest.mark.parametrize("supplier_location", ["RER", "RoW"])
-def test_non_emptied_transport_market_checks_full_supplier_identity(supplier_location):
+def test_non_emptied_transport_market_checks_full_supplier_identity(
+    supplier_location,
+):
     activity_name = "transport, freight, lorry, unspecified"
     supplier = "transport, freight, lorry, diesel, EURO 6"
     activity = {
@@ -428,7 +440,8 @@ def test_non_emptied_transport_market_checks_full_supplier_identity(supplier_loc
     if supplier_location == "RER":
         assert len(validator.major_issues_log) == 1
         assert (
-            validator.major_issues_log[0]["reason"] == "duplicate transport exchanges"
+            validator.major_issues_log[0]["reason"]
+            == "duplicate transport exchanges"
         )
     else:
         assert validator.major_issues_log == []
@@ -494,7 +507,10 @@ def test_transport_duplicate_check_reports_repeated_supplier_identity():
     validator.check_vehicles()
 
     assert len(validator.major_issues_log) == 1
-    assert validator.major_issues_log[0]["reason"] == "duplicate transport exchanges"
+    assert (
+        validator.major_issues_log[0]["reason"]
+        == "duplicate transport exchanges"
+    )
 
 
 def test_check_new_location_accepts_extra_superstructure_regions():
@@ -642,7 +658,9 @@ def _hydrogen_sector_market(sector, location="EUR"):
         "Other": "other end uses",
     }[sector]
     return {
-        "name": ("market for hydrogen, gaseous, low pressure, " f"for {suffix}"),
+        "name": (
+            "market for hydrogen, gaseous, low pressure, " f"for {suffix}"
+        ),
         "reference product": "hydrogen, gaseous, low pressure",
         "location": location,
         "unit": "kilogram",
@@ -688,7 +706,9 @@ def test_hydrogen_relinking_check_reports_late_and_cross_region_consumers():
             }
         ],
     }
-    validator = _fuels_validator([transport_market, *heating_markets, train, boiler])
+    validator = _fuels_validator(
+        [transport_market, *heating_markets, train, boiler]
+    )
 
     validator.check_hydrogen_sector_market_relinking()
 
@@ -703,7 +723,8 @@ def test_hydrogen_sector_consumer_check_reports_orphan_and_false_positive():
     other_market = _hydrogen_sector_market("Other")
     methanation = {
         "name": (
-            "methane, from biological methanation, with carbon from cement " "plant"
+            "methane, from biological methanation, with carbon from cement "
+            "plant"
         ),
         "reference product": "methane, high pressure",
         "location": "EUR",
@@ -740,7 +761,7 @@ def test_hydrogen_regasification_check_reports_unbalanced_leakage():
         "name": "liquid hydrogen regasification",
         "reference product": "liquid hydrogen regasification",
         "location": "EUR",
-        "unit": "unit",
+        "kilogram": "kilogram",
         "exchanges": [
             {
                 "name": "Hydrogen",
@@ -772,7 +793,9 @@ def test_hydrogen_makeup_geography_check_reports_shared_and_wrong_regions():
     }
     gaseous_truck = {
         "name": "transport, hydrogen, gaseous, lorry, unspecified",
-        "reference product": ("transport, hydrogen, gaseous, lorry, unspecified"),
+        "reference product": (
+            "transport, hydrogen, gaseous, lorry, unspecified"
+        ),
         "location": "GLO",
         "unit": "ton kilometer",
         "exchanges": [
@@ -914,7 +937,9 @@ def test_keep_general_consumer_linked_to_sector_market_is_reported():
 
 
 def test_expected_iam_location_does_not_remap_an_iam_region():
-    validator = _validator_for_locations(database_locations=["ME"], regions=["ME"])
+    validator = _validator_for_locations(
+        database_locations=["ME"], regions=["ME"]
+    )
 
     assert validator.expected_iam_location("ME") == "ME"
 
