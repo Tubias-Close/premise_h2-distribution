@@ -2325,7 +2325,12 @@ class HydrogenMixin:
             return share * HYDROGEN_PIPELINE_GENERAL_MARKET_AMOUNT
 
         distance = HYDROGEN_TRANSPORT_DISTANCES_KM[mode]
-        return share * distance * KG_TO_TONNE
+        mass_factor = (
+            KG_AMMONIA_CRACKED_PER_KG_HYDROGEN
+            if mode == "liquid_ammonia_ship"
+            else 1.0
+        )
+        return share * distance * mass_factor * KG_TO_TONNE
 
     # Sector-market conversion workflow: convert mode shares to conversion activity amounts.
     @staticmethod
