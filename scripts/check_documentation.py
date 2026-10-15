@@ -228,6 +228,7 @@ def check(root, repo):
             "performance-history",
             "consequential-validation-history",
             "documentation-audit",
+            "hydrogen-distribution-review",
             "scientific-update-backlog",
         ],
     }

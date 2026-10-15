@@ -165,20 +165,20 @@
     "title": "Hydrogen production and delivery",
     "steps": [
       {
-        "title": "Regionalize hydrogen production",
-        "detail": "Mapped route inventories and production volumes"
+        "title": "Estimate demand and delivery shares",
+        "detail": "Sector demand, plant or station scale, distribution rules"
       },
       {
-        "title": "Adjust selected feedstock inputs",
-        "detail": "IAM inverse efficiency; external electrolysis fallback"
+        "title": "Prepare regional production and delivery activities",
+        "detail": "Mapped inventories, IAM efficiency or electrolysis fallback"
       },
       {
-        "title": "Build regional hydrogen markets",
-        "detail": "Average or marginal production shares"
+        "title": "Build general and eligible sector markets",
+        "detail": "Production mix plus pipeline or demand-weighted delivery services"
       },
       {
-        "title": "Add pipeline delivery service and relink",
-        "detail": "One kg of distribution service per kg of market output"
+        "title": "Link consumers and check the supply chain",
+        "detail": "Available sector or general market; recheck after all updates"
       }
     ],
     "guard": "No fuel blend data: skip the fuels transformation"

@@ -4,7 +4,7 @@
    * - Source information
      - Details
    * - Source/data years
-     - Source publications mainly 2011–2022; reference/projection years vary by route
+     - Production and legacy supply-route sources mainly 2011–2022; sector-specific distribution references extend to 2026. Reference and projection years vary by route.
    * - Boundary
      - kg hydrogen with production, conditioning, transport and losses; plant-gate and delivered hydrogen are different functional units.
    * - Applicability
